@@ -1,4 +1,4 @@
-pub mod object;
+pub mod view;
 
 #[cfg(test)]
 mod tests {

@@ -1,10 +1,14 @@
 /// Defines the extent of a view
 #[derive(Clone, Copy, Debug)]
 pub struct Extent {
-    x1: f32, // The x-position of the upper left corner 
-    y1: f32, // The y-position of the upper left corner 
-    x2: f32, // The x-position of the lower right corner
-    y2: f32, // The y-position of the lower right corner
+    /// The x-position of the upper left corner 
+    x1: f32, 
+    /// The y-position of the upper left corner 
+    y1: f32, 
+    /// The x-position of the lower right corner
+    x2: f32, 
+    /// The y-position of the lower right corner
+    y2: f32,
 }
 
 impl Extent {
@@ -22,11 +26,11 @@ impl Extent {
     /// 
     /// Create an extent spanning (0.25, 0.25) to (0.75, 0.75)
     /// ```
-    /// use views::object::extent::Extent;
+    /// use views::view::extent::Extent;
     /// 
     /// let extent = Extent::from_size(0.25, 0.25, 0.5, 0.5); 
     /// ```
-    pub fn from_size(x: f32, y: f32, mut w: f32, mut h: f32) -> Self {
+    pub fn from_size(x: f32, y: f32, w: f32, h: f32) -> Self {
         Self::from_span(x, y, x + w, y + h)
     }
 
@@ -44,11 +48,12 @@ impl Extent {
     /// 
     /// Create an extent spanning (0.25, 0.25) to (0.75, 0.75)
     /// ```
-    /// use views::object::extent::Extent;
+    /// use views::view::extent::Extent;
     /// 
     /// let extent = Extent::from_span(0.25, 0.25, 0.75, 0.75); 
     /// ```
     pub fn from_span(x1: f32, y1: f32, mut x2: f32, mut y2: f32) -> Self {
+        // Make sure x2 and y2 are large enough
         if x2 < x1 {
             x2 = x1;
         }
@@ -65,7 +70,7 @@ impl Extent {
     /// # Examples
     /// 
     /// ```
-    /// use views::object::extent::Extent;
+    /// use views::view::extent::Extent;
     /// 
     /// let extent = Extent::from_span(0.25, 0.25, 0.75, 0.75);
     /// 
@@ -89,12 +94,12 @@ impl Extent {
 #[cfg(test)]
 impl Extent {
     /// Returns the size as (x, y, w, h), see from_size for further explanation
-    fn get_size(&self) -> (f32, f32, f32, f32) {
+    pub(crate) fn get_size(&self) -> (f32, f32, f32, f32) {
         (self.x1, self.y1, self.x2 - self.x1, self.y2 - self.y1)
     }
 
     // Returns the span as (x1, y1, x2, y2), see from_span for further explanation
-    fn get_span(&self) -> (f32, f32, f32, f32) {
+    pub(crate) fn get_span(&self) -> (f32, f32, f32, f32) {
         (self.x1, self.y1, self.x2, self.y2)
     }
 }
