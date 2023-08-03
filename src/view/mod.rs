@@ -26,9 +26,62 @@ impl View {
         Self {children, extent}
     }
 
-    pub fn update_extent(&mut self) {
+    pub fn update_extent(&mut self, prev: Option<&View>, siblings: &[&View]) {
 
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ExtentUpdate {
+    pub extent_type: ExtentUpdateType,
+    pub scale_rel: f32,
+    pub scale_abs: f32,
+    pub offset_rel: f32,
+    pub offset_abs: f32,    
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ExtentUpdateType {
+    Stretch(ExtentStretch),
+    Locate(ExtentLocate),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ExtentStretch {
+    pub pos1: PositionType,
+    pub pos2: PositionType,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ExtentLocate {
+    pub pos: AnchorPoint,
+    pub size: SizeType,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum PositionType {
+    Anchor(AnchorPoint),
+    Set(f32),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SizeType {
+    Stretch(ExtentStretch),
+    Relative(RefView),
+    Set(f32),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct AnchorPoint {
+    pub ref_view: RefView,
+    pub ref_point: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum RefView {
+    Parent,
+    Prev,
+    Id(usize),
 }
 
 #[cfg(test)]
