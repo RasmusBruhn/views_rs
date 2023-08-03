@@ -1,3 +1,5 @@
+use super::View;
+
 #[derive(Clone, Copy, Debug)]
 pub struct ExtentUpdate {
     pub extent_type: ExtentUpdateType,
@@ -49,4 +51,35 @@ pub enum RefView {
     Parent,
     Prev,
     Id(usize),
+}
+
+impl RefView {
+    /// Tests wether the reference view exists
+    /// 
+    /// # Parameters
+    /// 
+    /// siblings: A slice of all the previous siblings of this view
+    pub(crate) fn validate(&self, siblings: &[&View]) -> bool {
+        match *self {
+            // Make sure the index is within the sibling list
+            RefView::Id(index) => siblings.len() > index,
+
+            // Make sure the is a sibling if it references the previous
+            RefView::Prev => siblings.len() > 0,
+
+            // There is always a parent
+            RefView::Parent => true,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ref_view_validate() {
+        let view_list = Vec::new();
+        
+    }
 }
