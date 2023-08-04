@@ -1,14 +1,16 @@
+pub mod update;
+
 /// Defines the extent of a view
 #[derive(Clone, Copy, Debug)]
 pub struct Extent {
     /// The x-position of the upper left corner 
-    x1: f32, 
+    x: f32, 
     /// The y-position of the upper left corner 
-    y1: f32, 
-    /// The x-position of the lower right corner
-    x2: f32, 
-    /// The y-position of the lower right corner
-    y2: f32,
+    y: f32, 
+    /// The width
+    w: f32, 
+    /// The height
+    h: f32,
 }
 
 impl Extent {
@@ -30,8 +32,16 @@ impl Extent {
     /// 
     /// let extent = Extent::from_size(0.25, 0.25, 0.5, 0.5); 
     /// ```
-    pub fn from_size(x: f32, y: f32, w: f32, h: f32) -> Self {
-        Self::from_span(x, y, x + w, y + h)
+    pub fn from_size(x: f32, y: f32, mut w: f32, mut h: f32) -> Self {
+        // Make sure width and height are not negative
+        if w < 0.0 {
+            w = 0.0;
+        }
+        if h < 0.0 {
+            h = 0.0;
+        }
+        
+        Self { x, y, w, h }
     }
 
     /// Creates an extent with coordinate of the upper left and lower right corner.
@@ -52,16 +62,8 @@ impl Extent {
     /// 
     /// let extent = Extent::from_span(0.25, 0.25, 0.75, 0.75); 
     /// ```
-    pub fn from_span(x1: f32, y1: f32, mut x2: f32, mut y2: f32) -> Self {
-        // Make sure x2 and y2 are large enough
-        if x2 < x1 {
-            x2 = x1;
-        }
-        if y2 < y1 {
-            y2 = y1;
-        }
-        
-        Self {x1, y1, x2, y2}
+    pub fn from_span(x1: f32, y1: f32, x2: f32, y2: f32) -> Self {
+        Self::from_size(x1, y1, x2 - x1, y2 - y1)
     }
 
     /// Tests whether a point (x, y) is within the extent.
@@ -87,7 +89,7 @@ impl Extent {
     /// assert!(!extent.contained(0.5, 0.75));
     /// ```
     pub fn contained(&self, x: f32, y: f32) -> bool {
-        x >= self.x1 && y >= self.y1 && x < self.x2 && y < self.y2
+        x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
     }
 }
 
@@ -95,12 +97,12 @@ impl Extent {
 impl Extent {
     /// Returns the size as (x, y, w, h), see from_size for further explanation
     pub(crate) fn get_size(&self) -> (f32, f32, f32, f32) {
-        (self.x1, self.y1, self.x2 - self.x1, self.y2 - self.y1)
+        (self.x, self.y, self.w, self.h)
     }
 
     // Returns the span as (x1, y1, x2, y2), see from_span for further explanation
     pub(crate) fn get_span(&self) -> (f32, f32, f32, f32) {
-        (self.x1, self.y1, self.x2, self.y2)
+        (self.x, self.y, self.x + self.w, self.y + self.h)
     }
 }
 
