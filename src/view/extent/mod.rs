@@ -11,9 +11,13 @@ pub struct Extent {
     w: f32, 
     /// The height
     h: f32,
+    // The update information
+    update_info: update::ExtentUpdate,
 }
 
 impl Extent {
+    pub(crate)
+
     /// Creates an extent with coordinate of the upper left corner and its size.
     /// w and h are set to 0 if they are negative.
     /// 
