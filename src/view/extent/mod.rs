@@ -13,7 +13,7 @@ pub struct Extent {
     /// The height
     h: f32,
     // The update information
-    update_info: update::ExtentUpdate,
+    pub(super) update_info: update::ExtentUpdate,
 }
 
 impl Extent {
