@@ -1,4 +1,4 @@
-use crate::view::View;
+use crate::view::{View, ChildValidateError};
 
 /// Defines how the entire extent should update
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -94,8 +94,6 @@ pub struct AnchorPoint {
 /// The different ways to reference another view
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RefView {
-    /// The parent view, this always has the extent (x, y, w, h) = (0, 0, 1, 1)
-    Parent,
     /// Use the previous sibling view, useful for lists
     Prev,
     /// Use the Id of a sibling which is older than this one
@@ -112,14 +110,21 @@ pub enum Dim {
 }
 
 impl ExtentUpdate {
-    /// Tests wether the possible reference views exists
+    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    pub(super) fn validate(&self, siblings: &[Box<View>]) -> bool {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    pub(super) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure both x and y are valid
-        self.x.validate(siblings) && self.y.validate(siblings)
+        self.x.validate(siblings)?;
+        self.y.validate(siblings)
     }
 
     /// Retrieves the extent
@@ -127,6 +132,7 @@ impl ExtentUpdate {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     pub(super) fn get(&self, siblings: &[Box<View>]) -> (f32, f32, f32, f32) {
         // Get the x and y components
@@ -135,15 +141,55 @@ impl ExtentUpdate {
 
         (x.0, y.0, x.1, y.1)
     }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        self.x.update_insert(pos);
+        self.y.update_insert(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        self.x.update_delete(pos);
+        self.y.update_delete(pos);
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        self.y.check_id(id) || self.y.check_id(id)
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        self.x.check_prev() || self.y.check_prev()
+    }
 }
 
 impl ExtentUpdateSingle {
-    /// Tests wether the possible reference views exists
+    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure the extent is valid
         self.extent_type.validate(siblings)
     }
@@ -153,6 +199,7 @@ impl ExtentUpdateSingle {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> (f32, f32) {
         // Get the base position and size
@@ -170,16 +217,54 @@ impl ExtentUpdateSingle {
 
         (pos, size)
     }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        self.extent_type.update_insert(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        self.extent_type.update_delete(pos);
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        self.extent_type.check_id(id)
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        self.extent_type.check_prev()
+    }
 }
 
 impl ExtentUpdateType {
-    /// Tests wether the possible reference views exists
+    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
-        match *self {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+        match self {
             // Make sure stretch mode is valid
             Self::Stretch(stretch) => stretch.validate(siblings),
 
@@ -193,9 +278,10 @@ impl ExtentUpdateType {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> (f32, f32) {
-        match *self {
+        match self {
             // Get from the stretch method
             Self::Stretch(stretch) => stretch.get(dim, siblings),
 
@@ -203,17 +289,80 @@ impl ExtentUpdateType {
             Self::Locate(locate) => locate.get(dim, siblings),
         }
     }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        match self {
+            // Extent is stretched between two points
+            Self::Stretch(stretch) => stretch.update_insert(pos),
+
+            // Extent is defined by a position and size
+            Self::Locate(locate) => locate.update_insert(pos),
+        }
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        match self {
+            // Extent is stretched between two points
+            Self::Stretch(stretch) => stretch.update_delete(pos),
+
+            // Extent is defined by a position and size
+            Self::Locate(locate) => locate.update_delete(pos),
+        }
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        match self {
+            // Extent is stretched between two points
+            Self::Stretch(stretch) => stretch.check_id(id),
+
+            // Extent is defined by a position and size
+            Self::Locate(locate) => locate.check_id(id),
+        }
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        match self {
+            // Extent is stretched between two points
+            Self::Stretch(stretch) => stretch.check_prev(),
+
+            // Extent is defined by a position and size
+            Self::Locate(locate) => locate.check_prev(),
+        }
+    }
 }
 
 impl ExtentLocate {
-    /// Tests wether the possible reference views exists
+    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure position and size are valid
-        self.pos.validate(siblings) && self.size.validate(siblings)
+        self.pos.validate(siblings)?;
+        self.size.validate(siblings)
     }
     
     /// Retrieves the position and size
@@ -221,6 +370,7 @@ impl ExtentLocate {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> (f32, f32) {
         // Get the position and size
@@ -229,16 +379,56 @@ impl ExtentLocate {
 
         (pos, size)
     }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        self.pos.update_insert(pos);
+        self.size.update_delete(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        self.pos.update_delete(pos);
+        self.size.update_delete(pos);
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        self.pos.check_id(id) || self.size.check_id(id)
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        self.pos.check_prev() || self.size.check_prev()
+    }
 }
 
 impl SizeType {
-    /// Tests wether the possible reference views exists
+    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
-        match *self {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+        match self {
             // Make sure possible references in the stretch are valid
             Self::Stretch(stretch) => stretch.validate(siblings),
 
@@ -246,7 +436,7 @@ impl SizeType {
             Self::Relative(ref_view) => ref_view.validate(siblings),
 
             // Set is always valid
-            Self::Set(_) => true,
+            Self::Set(_) => Ok(()),
         }
     }
 
@@ -255,9 +445,10 @@ impl SizeType {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> f32 {
-        match *self {
+        match self {
             // Use the size from a stretch
             Self::Stretch(stretch) => stretch.get(dim, siblings).1,
 
@@ -265,20 +456,95 @@ impl SizeType {
             Self::Relative(ref_view) => ref_view.get(dim, siblings).1,
 
             // Use a static size
-            Self::Set(size) => size,
+            Self::Set(size) => *size,
+        }
+    }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        match self {
+            // The size is relative to another size
+            Self::Relative(relative) => relative.update_insert(pos),
+
+            // The size is stretched between two points
+            Self::Stretch(stretch) => stretch.update_insert(pos),
+
+            // Set never references anything
+            Self::Set(_) => (),
+        }
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        match self {
+            // The size is relative to another size
+            Self::Relative(relative) => relative.update_delete(pos),
+
+            // The size is stretched between two points
+            Self::Stretch(stretch) => stretch.update_delete(pos),
+
+            // Set never references anything
+            Self::Set(_) => (),
+        }
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        match self {
+            // The size is relative to another size
+            Self::Relative(relative) => relative.check_id(id),
+
+            // The size is stretched between two points
+            Self::Stretch(stretch) => stretch.check_id(id),
+
+            // Set never references anything
+            Self::Set(_) => false,
+        }
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        match self {
+            // The size is relative to another size
+            Self::Relative(relative) => relative.check_prev(),
+
+            // The size is stretched between two points
+            Self::Stretch(stretch) => stretch.check_prev(),
+
+            // Set never references anything
+            Self::Set(_) => false,
         }
     }
 }
 
 impl ExtentStretch {
-    /// Tests wether the possible reference views exists
+    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure both positions are valid
-        self.pos1.validate(siblings) && self.pos2.validate(siblings)
+        self.pos1.validate(siblings)?;
+        self.pos2.validate(siblings)
     }
 
     /// Retrieves the position and size
@@ -286,6 +552,7 @@ impl ExtentStretch {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> (f32, f32) {
         // Get the two positions
@@ -294,21 +561,61 @@ impl ExtentStretch {
 
         (pos1, pos2 - pos1)
     }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        self.pos1.update_insert(pos);
+        self.pos2.update_insert(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        self.pos1.update_delete(pos);
+        self.pos2.update_delete(pos);
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        self.pos1.check_id(id) || self.pos2.check_id(id)
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        self.pos1.check_prev() || self.pos2.check_prev()
+    }
 }
 
 impl PositionType {
-    /// Tests wether the possible reference views exists
+    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
-        match *self {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+        match self {
             // Make sure the anchor point is valid
             Self::Anchor(anchor) => anchor.validate(siblings),
 
             // Set is always valid
-            Self::Set(_) => true,
+            Self::Set(_) => Ok(()),
         }
     }
 
@@ -317,25 +624,88 @@ impl PositionType {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> f32 {
-        match *self {
+        match self {
             // Get from an anchor point
             Self::Anchor(anchor) => anchor.get(dim, siblings),
 
             // Get a static position
-            Self::Set(pos) => pos,
+            Self::Set(pos) => *pos,
+        }
+    }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        match self {
+            // Check the anchor
+            Self::Anchor(anchor) => anchor.update_insert(pos),
+
+            // Set is always false
+            Self::Set(_) => (),
+        }
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        match self {
+            // Check the anchor
+            Self::Anchor(anchor) => anchor.update_delete(pos),
+
+            // Set is always false
+            Self::Set(_) => (),
+        }
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        match self {
+            // Check the anchor
+            Self::Anchor(anchor) => anchor.check_id(id),
+
+            // Set is always false
+            Self::Set(_) => false,
+        }
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        match self {
+            // Check the anchor
+            Self::Anchor(anchor) => anchor.check_prev(),
+
+            // Set is always false
+            Self::Set(_) => false,
         }
     }
 }
 
 impl AnchorPoint {
-    /// Tests wether the reference view exists
+    /// Tests wether the reference view exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure the reference is valid
         self.ref_view.validate(siblings)
     }
@@ -345,6 +715,7 @@ impl AnchorPoint {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> f32 {
         // Get the position and size
@@ -353,24 +724,71 @@ impl AnchorPoint {
         // Get the correct position
         pos + self.ref_point * size
     }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        self.ref_view.update_insert(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        self.ref_view.update_delete(pos);
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        self.ref_view.check_id(id)
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        self.ref_view.check_prev()
+    }
 }
 
 impl RefView {
-    /// Tests wether the reference view exists
+    /// Tests wether the reference view exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    fn validate(&self, siblings: &[Box<View>]) -> bool {
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         match *self {
             // Make sure the index is within the sibling list
-            Self::Id(index) => siblings.len() > index,
+            Self::Id(index) => {
+                if index >= siblings.len() {
+                    Err(ChildValidateError::WrongId(index, siblings.len()))
+                } else {
+                    Ok(())
+                }
+            }
 
             // Make sure the is a sibling if it references the previous
-            Self::Prev => siblings.len() > 0,
-
-            // There is always a parent
-            Self::Parent => true,
+            Self::Prev => {
+                if siblings.len() == 0 {
+                    Err(ChildValidateError::NoPrev)
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 
@@ -379,17 +797,67 @@ impl RefView {
     /// # Parameters
     /// 
     /// dim: The dimension to use
+    /// 
     /// siblings: The list of older siblings
     fn get(&self, dim: Dim, siblings: &[Box<View>]) -> (f32, f32) {
         match *self {
-            // Get size from the parent
-            Self::Parent => (0.0, 1.0),
-
             // Get size from previous sibling
             Self::Prev => dim.get_from_view(siblings.last().unwrap()),
 
             // Get size from id
             Self::Id(n) => dim.get_from_view(siblings.get(n).unwrap()),
+        }
+    }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        if let Self::Id(id) = self {
+            if *id >= pos {
+                *id += 1;
+            }
+        }
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        if let Self::Id(id) = self {
+            if *id > pos {
+                *id -= 1;
+            }
+        }
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        if let Self::Id(use_id) = *self {
+            if id == use_id {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        if let Self::Prev = *self {
+            true
+        } else {
+            false
         }
     }
 }
@@ -400,6 +868,7 @@ impl Dim {
     /// # Parameters
     /// 
     /// dim: The dimension to get data for
+    /// 
     /// view: The view to extract the data from
     fn get_from_view(&self, view: &View) -> (f32, f32) {
         match *self {
@@ -422,77 +891,77 @@ mod tests {
         let single_extent_success = ExtentUpdateSingle { extent_type: ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }), scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
         let single_extent_fail = ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev)}), scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
 
-        assert!(ExtentUpdate { x: single_extent_success, y: single_extent_success }.validate(&view_list));
-        assert!(!ExtentUpdate { x: single_extent_fail, y: single_extent_success }.validate(&view_list));
-        assert!(!ExtentUpdate { x: single_extent_success, y: single_extent_fail }.validate(&view_list));
-        assert!(!ExtentUpdate { x: single_extent_fail, y: single_extent_fail }.validate(&view_list));
+        assert!(ExtentUpdate { x: single_extent_success, y: single_extent_success }.validate(&view_list).is_ok());
+        assert!(ExtentUpdate { x: single_extent_fail, y: single_extent_success }.validate(&view_list).is_err());
+        assert!(ExtentUpdate { x: single_extent_success, y: single_extent_fail }.validate(&view_list).is_err());
+        assert!(ExtentUpdate { x: single_extent_fail, y: single_extent_fail }.validate(&view_list).is_err());
     }
 
     #[test]
     fn extent_update_single_validate() {
         let view_list = Vec::new();
 
-        assert!(ExtentUpdateSingle { extent_type: ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }), scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }.validate(&view_list));
-        assert!(!ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev)}), scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }.validate(&view_list));
+        assert!(ExtentUpdateSingle { extent_type: ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }), scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }.validate(&view_list).is_ok());
+        assert!(ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev)}), scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }.validate(&view_list).is_err());
     }
 
     #[test]
     fn extent_update_type_validate() {
         let view_list = Vec::new();
 
-        assert!(ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }).validate(&view_list));
-        assert!(!ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) }).validate(&view_list));
-        assert!(ExtentUpdateType::Locate(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Set(0.0)}).validate(&view_list));
-        assert!(!ExtentUpdateType::Locate(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev)}).validate(&view_list));
+        assert!(ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }).validate(&view_list).is_ok());
+        assert!(ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) }).validate(&view_list).is_err());
+        assert!(ExtentUpdateType::Locate(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Set(0.0)}).validate(&view_list).is_ok());
+        assert!(ExtentUpdateType::Locate(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev)}).validate(&view_list).is_err());
     }
 
     #[test]
     fn extent_locate_validate() {
         let view_list = Vec::new();
 
-        assert!(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Set(0.0)}.validate(&view_list));
-        assert!(!ExtentLocate {pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Set(0.0)}.validate(&view_list));
-        assert!(!ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev)}.validate(&view_list));
-        assert!(!ExtentLocate {pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Relative(RefView::Prev)}.validate(&view_list));
+        assert!(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Set(0.0)}.validate(&view_list).is_ok());
+        assert!(ExtentLocate {pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Set(0.0)}.validate(&view_list).is_err());
+        assert!(ExtentLocate {pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev)}.validate(&view_list).is_err());
+        assert!(ExtentLocate {pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Relative(RefView::Prev)}.validate(&view_list).is_err());
     }
 
     #[test]
     fn size_type_validate() {
         let view_list = Vec::new();
 
-        assert!(SizeType::Stretch(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }).validate(&view_list));
-        assert!(!SizeType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) }).validate(&view_list));
-        assert!(SizeType::Relative(RefView::Parent).validate(&view_list));
-        assert!(!SizeType::Relative(RefView::Prev).validate(&view_list));
-        assert!(SizeType::Set(0.0).validate(&view_list));
+        assert!(SizeType::Stretch(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }).validate(&view_list).is_ok());
+        assert!(SizeType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) }).validate(&view_list).is_err());
+        //assert!(SizeType::Relative(RefView::Parent).validate(&view_list).is_ok());
+        assert!(SizeType::Relative(RefView::Prev).validate(&view_list).is_err());
+        assert!(SizeType::Set(0.0).validate(&view_list).is_ok());
     }
 
     #[test]
     fn extent_stretch_validate() {
         let view_list = Vec::new();
 
-        assert!(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }.validate(&view_list));
-        assert!(!ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) }.validate(&view_list));
-        assert!(!ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) }.validate(&view_list));
-        assert!(!ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) }.validate(&view_list));
+        assert!(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Set(0.0) }.validate(&view_list).is_ok());
+        assert!(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) }.validate(&view_list).is_err());
+        assert!(ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) }.validate(&view_list).is_err());
+        assert!(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) }.validate(&view_list).is_err());
     }
 
     #[test]
     fn position_type_validate() {
         let view_list = Vec::new();
 
-        assert!(PositionType::Anchor(AnchorPoint { ref_view: RefView::Parent, ref_point: 0.0 }).validate(&view_list));
-        assert!(!PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }).validate(&view_list));
-        assert!(PositionType::Set(0.0).validate(&view_list));
+        //assert!(PositionType::Anchor(AnchorPoint { ref_view: RefView::Parent, ref_point: 0.0 }).validate(&view_list).is_ok());
+        assert!(PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }).validate(&view_list).is_err());
+        assert!(PositionType::Set(0.0).validate(&view_list).is_ok());
     }
 
     #[test]
     fn anchor_point_validate() {
         let mut view_list = Vec::new();
-        view_list.push(Box::new(View::new_root()));
+        view_list.push(View::new_root());
 
-        assert!(AnchorPoint {ref_view: RefView::Id(0), ref_point: 0.0}.validate(&view_list));
-        assert!(!AnchorPoint {ref_view: RefView::Id(1), ref_point: 0.0}.validate(&view_list));
+        assert!(AnchorPoint {ref_view: RefView::Id(0), ref_point: 0.0}.validate(&view_list).is_ok());
+        assert!(AnchorPoint {ref_view: RefView::Id(1), ref_point: 0.0}.validate(&view_list).is_err());
     }
 
     #[test]
@@ -500,13 +969,13 @@ mod tests {
         let mut view_list = Vec::new();
         let empty_view_list = Vec::new();
         
-        view_list.push(Box::new(View::new_root()));
-        view_list.push(Box::new(View::new_root()));
+        view_list.push(View::new_root());
+        view_list.push(View::new_root());
 
-        assert!(RefView::Parent.validate(&view_list));
-        assert!(RefView::Prev.validate(&view_list));
-        assert!(!RefView::Prev.validate(&empty_view_list));
-        assert!(RefView::Id(1).validate(&view_list));
-        assert!(!RefView::Id(2).validate(&view_list));
+        //assert!(RefView::Parent.validate(&view_list).is_ok());
+        assert!(RefView::Prev.validate(&view_list).is_ok());
+        assert!(RefView::Prev.validate(&empty_view_list).is_err());
+        assert!(RefView::Id(1).validate(&view_list).is_ok());
+        assert!(RefView::Id(2).validate(&view_list).is_err());
     }
 }

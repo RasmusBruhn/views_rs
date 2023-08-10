@@ -1,5 +1,5 @@
 pub mod update;
-use super::View;
+use super::{View, ChildValidateError};
 
 /// Defines the extent of a view
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,9 +33,25 @@ impl Extent {
     /// # Parameters
     /// 
     /// x: The x-position of the point
+    /// 
     /// y: The y-position of the point
     fn contained(&self, x: f32, y: f32) -> bool {
         x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
+    }
+
+    /// Checks whether the update info has any invalid references. Returns an error in case of an invalid reference.
+    /// 
+    /// # Parameters
+    /// 
+    /// siblings: A slice of all the previous siblings of this view
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    pub(super) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+        self.update_info.validate(siblings)
     }
 
     /// Updates the extent
