@@ -12,7 +12,9 @@ pub struct Extent {
     w: f32, 
     /// The height
     h: f32,
-    // The update information
+    /// The ratio of w to h in absolute size on the screen, None if either w or h are <= 0
+    ratio: Option<Ratio>,
+    /// The update information
     pub(super) update_info: update::ExtentUpdate,
 }
 
@@ -65,13 +67,42 @@ impl Extent {
     }
 }
 
+/// Defines a ratio, this is always positive
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Ratio {
+    /// The value of the ratio
+    value: f32,
+}
+
+impl Ratio {
+    /// Creates a new ratio (w / h) or None if it is invalid (w or h <= 0)
+    /// 
+    /// # Parameters
+    /// 
+    /// w: The width
+    /// 
+    /// h: The height
+    pub fn new(w: f32, h: f32) -> Option<Self> {
+        if w > 0.0 && h > 0.0 {
+            Some(Self { value: w / h })
+        } else {
+            None
+        }
+    }
+
+    /// Returns the value of the ratio
+    pub fn get(&self) -> f32 {
+        self.value
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn contained_inside() {
-        let update_type = update::ExtentUpdateType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
+        let update_type = update::ExtentUpdateSingleType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
         let update_single = update::ExtentUpdateSingle { extent_type: update_type, scale_rel: 1.0, scale_abs: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
         let extent = Extent::new(update::ExtentUpdate { x: update_single, y: update_single });
 
@@ -80,7 +111,7 @@ mod tests {
 
     #[test]
     fn contained_outside() {
-        let update_type = update::ExtentUpdateType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
+        let update_type = update::ExtentUpdateSingleType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
         let update_single = update::ExtentUpdateSingle { extent_type: update_type, scale_rel: 1.0, scale_abs: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
         let extent = Extent::new(update::ExtentUpdate { x: update_single, y: update_single });
 
@@ -89,7 +120,7 @@ mod tests {
 
     #[test]
     fn contained_edge() {
-        let update_type = update::ExtentUpdateType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
+        let update_type = update::ExtentUpdateSingleType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
         let update_single = update::ExtentUpdateSingle { extent_type: update_type, scale_rel: 1.0, scale_abs: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
         let extent = Extent::new(update::ExtentUpdate { x: update_single, y: update_single });
 

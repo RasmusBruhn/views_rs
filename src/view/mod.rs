@@ -1,7 +1,7 @@
 mod extent;
 mod update;
 
-pub use extent::update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView};
+pub use extent::update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateSingleType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView};
 pub use update::ViewUpdater;
 
 use bitflags;
@@ -167,6 +167,8 @@ pub enum ChildValidateError {
     SiblingDependenceId(usize),
     #[error("This view cannot be deleted because the next sibling is referencing this view and there is no prev sibling")]
     SiblingDependencePrev,
+    #[error("An extent cannot use aspect mode for both dimensions")]
+    BothRatio,
 }
 
 #[cfg(test)]

@@ -1,12 +1,15 @@
 use crate::view::{View, ChildValidateError};
+use super::Ratio;
 
 /// Defines how the entire extent should update
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExtentUpdate {
     /// Defines how the x-dimension should update
     pub x: ExtentUpdateSingle,
-    // Defines how the y-dimension should update
-    pub y: ExtentUpdateSingle,  
+    /// Defines how the y-dimension should update
+    pub y: ExtentUpdateSingle,
+    /// The dimension which is fixed (not using ratio) (x if both are fixed)
+    fixed: Dim,
 }
 
 /// Defines how a single dimension should update
@@ -42,9 +45,18 @@ pub enum ExtentUpdateType {
     Stretch(ExtentStretch),
     /// The extent is updated by giving it a position and a size
     Locate(ExtentLocate),
+    /// The extent is updated using a fixed extent
+    Ratio(ExtentRatio),
 }
 
-/// Defines how to update the exent in Locate mode
+/// Defines how to update the extent when a fixed ratio between w and h is used
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ExtentRatio {
+    /// The position of the extent
+    pub pos: PositionType,
+}
+
+/// Defines how to update the extent in Locate mode
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExtentLocate {
     /// Defines how the position is updated
@@ -102,7 +114,7 @@ pub enum RefView {
 
 /// Describes what dimension to get the coordinate from
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Dim {
+enum Dim {
     /// The x direction
     X,
     /// The y-direction
@@ -110,7 +122,18 @@ pub enum Dim {
 }
 
 impl ExtentUpdate {
-    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
+    /// Creates a new extent update info
+    /// 
+    /// # Parameters
+    /// 
+    /// x: The info for updating x
+    /// 
+    /// y: The info for updating y
+    pub fn new(x: ExtentUpdateSingle, y: ExtentUpdateSingle) -> Self {
+        Self { x, y, fixed: Dim::X }
+    }
+
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -118,10 +141,28 @@ impl ExtentUpdate {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
-    pub(super) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// 
+    /// BothRatio: Both x and y uses a fixed aspect ratio referencing each other
+    pub(super) fn validate(&mut self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+        // Figure out if any dimension uses ratio and make sure they do not both do that
+        let x_ratio = if let ExtentUpdateType::Ratio(_) = self.x.extent_type {
+            self.fixed = Dim::Y;
+            true
+        } else {
+            false
+        };
+
+        if let ExtentUpdateType::Ratio(_) = self.y.extent_type {
+            if x_ratio {
+                return Err(ChildValidateError::BothRatio);
+            }
+
+            self.fixed = Dim::X;
+        };
+
         // Make sure both x and y are valid
         self.x.validate(siblings)?;
         self.y.validate(siblings)
@@ -134,10 +175,25 @@ impl ExtentUpdate {
     /// dim: The dimension to use
     /// 
     /// siblings: The list of older siblings
-    pub(super) fn get(&self, siblings: &[Box<View>]) -> (f32, f32, f32, f32) {
+    pub(super) fn get(&self, siblings: &[Box<View>], parent_ratio: Ratio) -> (f32, f32, f32, f32) {
         // Get the x and y components
-        let x = self.x.get(Dim::X, siblings);
-        let y = self.y.get(Dim::Y, siblings);
+        let (x, y) = match self.fixed {
+            // x must be evaluated before y
+            Dim::X => {
+                let x = self.x.get(Dim::X, siblings, parent_ratio, 0.0);
+                let y = self.y.get(Dim::Y, siblings, parent_ratio, x.1);
+    
+                (x, y)  
+            }
+
+            // y must be evaluated before x
+            Dim::Y => {
+                let y = self.y.get(Dim::Y, siblings, parent_ratio, 0.0);
+                let x = self.x.get(Dim::X, siblings, parent_ratio, y.1);
+    
+                (x, y)  
+            }
+        };
 
         (x.0, y.0, x.1, y.1)
     }
@@ -178,7 +234,7 @@ impl ExtentUpdate {
 }
 
 impl ExtentUpdateSingle {
-    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -186,9 +242,9 @@ impl ExtentUpdateSingle {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure the extent is valid
         self.extent_type.validate(siblings)
@@ -201,9 +257,13 @@ impl ExtentUpdateSingle {
     /// dim: The dimension to use
     /// 
     /// siblings: The list of older siblings
-    fn get(&self, dim: Dim, siblings: &[Box<View>]) -> (f32, f32) {
+    ///
+    /// parent_ratio: The aspect ratio of the parent, used if extent type is ratio
+    /// 
+    /// other_size: The sizze of the other dimension, used if extent type is ratio
+    fn get(&self, dim: Dim, siblings: &[Box<View>], parent_ratio: Ratio, other_size: f32) -> (f32, f32) {
         // Get the base position and size
-        let (mut pos, mut size) = self.extent_type.get(dim, siblings);
+        let (mut pos, mut size) = self.extent_type.get(dim, siblings, parent_ratio, other_size);
 
         // Apply changes
         pos += self.offset_abs + self.offset_rel * size;
@@ -252,7 +312,7 @@ impl ExtentUpdateSingle {
 }
 
 impl ExtentUpdateType {
-    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -260,9 +320,9 @@ impl ExtentUpdateType {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         match self {
             // Make sure stretch mode is valid
@@ -270,6 +330,9 @@ impl ExtentUpdateType {
 
             // Make sure locate mode is valid
             Self::Locate(locate) => locate.validate(siblings),
+
+            // Make sure ratio mode is valid
+            Self::Ratio(ratio) => ratio.validate(siblings),
         }
     }
 
@@ -280,13 +343,20 @@ impl ExtentUpdateType {
     /// dim: The dimension to use
     /// 
     /// siblings: The list of older siblings
-    fn get(&self, dim: Dim, siblings: &[Box<View>]) -> (f32, f32) {
+    /// 
+    /// parent_ratio: The aspect ratio of the parent, used if extent type is ratio
+    /// 
+    /// other_size: The sizze of the other dimension, used if extent type is ratio
+    fn get(&self, dim: Dim, siblings: &[Box<View>], parent_ratio: Ratio, other_size: f32) -> (f32, f32) {
         match self {
             // Get from the stretch method
             Self::Stretch(stretch) => stretch.get(dim, siblings),
 
             // Get from the locate method
             Self::Locate(locate) => locate.get(dim, siblings),
+
+            // Get from the ratio method
+            Self::Ratio(ratio) => ratio.get(dim, siblings, parent_ratio, other_size),
         }
     }
 
@@ -302,6 +372,9 @@ impl ExtentUpdateType {
 
             // Extent is defined by a position and size
             Self::Locate(locate) => locate.update_insert(pos),
+
+            // Extent is defined by a position and a ratio to the other dimension size
+            Self::Ratio(ratio) => ratio.update_insert(pos),
         }
     }
 
@@ -317,6 +390,9 @@ impl ExtentUpdateType {
 
             // Extent is defined by a position and size
             Self::Locate(locate) => locate.update_delete(pos),
+
+            // Extent is defined by a position and a ratio to the other dimension size
+            Self::Ratio(ratio) => ratio.update_delete(pos),
         }
     }
 
@@ -332,6 +408,9 @@ impl ExtentUpdateType {
 
             // Extent is defined by a position and size
             Self::Locate(locate) => locate.check_id(id),
+
+            // Extent is defined by a position and a ratio to the other dimension size
+            Self::Ratio(ratio) => ratio.check_id(id),
         }
     }
 
@@ -343,12 +422,15 @@ impl ExtentUpdateType {
 
             // Extent is defined by a position and size
             Self::Locate(locate) => locate.check_prev(),
+
+            // Extent is defined by a position and a ratio to the other dimension size
+            Self::Ratio(ratio) => ratio.check_prev(),
         }
     }
 }
 
-impl ExtentLocate {
-    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
+impl ExtentRatio {
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -356,9 +438,77 @@ impl ExtentLocate {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
+    fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+        self.pos.validate(siblings)
+    }
+    
+    /// Retrieves the position and size
+    /// 
+    /// # Parameters
+    /// 
+    /// dim: The dimension to use
+    /// 
+    /// siblings: The list of older siblings
+    /// 
+    /// parent_ratio: The aspect ratio of the parent
+    /// 
+    /// other_size: The sizze of the other dimension
+    fn get(&self, dim: Dim, siblings: &[Box<View>], parent_ratio: Ratio, other_size: f32) -> (f32, f32) {
+        // Get the position and size
+        let pos = self.pos.get(dim, siblings);
+        let size = other_size / parent_ratio.get();
+
+        (pos, size)
+    }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_insert(&mut self, pos: usize) {
+        self.pos.update_insert(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted
+    fn update_delete(&mut self, pos: usize) {
+        self.pos.update_delete(pos);
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    fn check_id(&self, id: usize) -> bool {
+        self.pos.check_id(id)
+    }
+
+    /// Checks if this view references the previous sibling
+    fn check_prev(&self) -> bool {
+        self.pos.check_prev()
+    }
+}
+
+impl ExtentLocate {
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
+    /// 
+    /// # Parameters
+    /// 
+    /// siblings: A slice of all the previous siblings of this view
+    /// 
+    /// # Errors
+    /// 
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure position and size are valid
         self.pos.validate(siblings)?;
@@ -416,7 +566,7 @@ impl ExtentLocate {
 }
 
 impl SizeType {
-    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -424,9 +574,9 @@ impl SizeType {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         match self {
             // Make sure possible references in the stretch are valid
@@ -530,7 +680,7 @@ impl SizeType {
 }
 
 impl ExtentStretch {
-    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -538,9 +688,9 @@ impl ExtentStretch {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure both positions are valid
         self.pos1.validate(siblings)?;
@@ -598,7 +748,7 @@ impl ExtentStretch {
 }
 
 impl PositionType {
-    /// Tests wether the possible reference views exists, returns an error in case of an invalid reference
+    /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -606,9 +756,9 @@ impl PositionType {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         match self {
             // Make sure the anchor point is valid
@@ -694,7 +844,7 @@ impl PositionType {
 }
 
 impl AnchorPoint {
-    /// Tests wether the reference view exists, returns an error in case of an invalid reference
+    /// Tests whether the reference view exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -702,9 +852,9 @@ impl AnchorPoint {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Make sure the reference is valid
         self.ref_view.validate(siblings)
@@ -759,7 +909,7 @@ impl AnchorPoint {
 }
 
 impl RefView {
-    /// Tests wether the reference view exists, returns an error in case of an invalid reference
+    /// Tests whether the reference view exists, returns an error in case of an invalid reference
     /// 
     /// # Parameters
     /// 
@@ -767,9 +917,9 @@ impl RefView {
     /// 
     /// # Errors
     /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    /// NoPrev: If a reference to the previous sibling is used but this is the first child
     fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         match *self {
             // Make sure the index is within the sibling list
