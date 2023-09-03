@@ -11,21 +11,6 @@ pub struct ExtentUpdate {
     pub x: ExtentUpdateSingle,
     /// Defines how the y-dimension should update
     pub y: ExtentUpdateSingle,
-    /// The dimension which is fixed (not using ratio) (x if both are fixed)
-    fixed: Dim,
-}
-
-impl ExtentUpdate {
-    /// Creates a new extent update info
-    /// 
-    /// # Parameters
-    /// 
-    /// x: The info for updating x
-    /// 
-    /// y: The info for updating y
-    pub fn new(x: ExtentUpdateSingle, y: ExtentUpdateSingle) -> Self {
-        Self { x, y, fixed: Dim::X }
-    }
 }
 
 /// Defines how a single dimension should update

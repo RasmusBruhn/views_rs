@@ -15,10 +15,9 @@ impl ExtentUpdate {
     /// NoPrev: If a reference to the previous sibling is used but this is the first child
     /// 
     /// BothRatio: Both x and y uses a fixed aspect ratio referencing each other
-    pub(crate) fn validate(&mut self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+    pub(crate) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         // Figure out if any dimension uses ratio and make sure they do not both do that
         let x_ratio = if let ExtentUpdateType::Ratio(_) = self.x.extent_type {
-            self.fixed = Dim::Y;
             true
         } else {
             false
@@ -28,8 +27,6 @@ impl ExtentUpdate {
             if x_ratio {
                 return Err(ChildValidateError::BothRatio);
             }
-
-            self.fixed = Dim::X;
         };
 
         // Make sure both x and y are valid

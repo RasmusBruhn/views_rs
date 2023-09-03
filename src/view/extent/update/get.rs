@@ -11,19 +11,19 @@ impl ExtentUpdate {
     /// siblings: The list of older siblings
     pub(crate) fn get(&self, siblings: &[Box<View>], parent_ratio: Ratio) -> (f32, f32, f32, f32) {
         // Get the x and y components
-        let (x, y) = match self.fixed {
-            // x must be evaluated before y
-            Dim::X => {
-                let x = self.x.get(Dim::X, siblings, parent_ratio, 0.0);
-                let y = self.y.get(Dim::Y, siblings, parent_ratio, x.1);
+        let (x, y) = match self.x.extent_type {
+            // y must be evaluated before x
+            ExtentUpdateType::Ratio(_) => {
+                let y = self.y.get(Dim::Y, siblings, parent_ratio, 0.0);
+                let x = self.x.get(Dim::X, siblings, parent_ratio, y.1);
     
                 (x, y)  
             }
 
-            // y must be evaluated before x
-            Dim::Y => {
-                let y = self.y.get(Dim::Y, siblings, parent_ratio, 0.0);
-                let x = self.x.get(Dim::X, siblings, parent_ratio, y.1);
+            // x must be evaluated before y
+            _ => {
+                let x = self.x.get(Dim::X, siblings, parent_ratio, 0.0);
+                let y = self.y.get(Dim::Y, siblings, parent_ratio, x.1);
     
                 (x, y)  
             }
@@ -233,7 +233,7 @@ mod tests {
 
     fn gen_view(x: f32, y: f32, w: f32, h: f32, sibling_id: usize) -> View {
         let extent_single = ExtentUpdateSingle { scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0, extent_type: ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) }) };
-        let extent_info = ExtentUpdate::new(extent_single, extent_single);
+        let extent_info = ExtentUpdate { x: extent_single, y: extent_single };
         let extent = Extent { x, y, w, h, update_info: extent_info, ratio: Ratio::new(w, h) };
         View { children: Vec::new(), extent: extent, sibling_id: Some(sibling_id), update_flags: UpdateFlags::empty() }
     }
@@ -359,10 +359,10 @@ mod tests {
         let extent_locate = ExtentLocate { pos: PositionType::Set(5.0), size: SizeType::Set(2.0) };
         let extent_update_single_y = ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(extent_locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
 
-        let extent_update = ExtentUpdate { x: extent_update_single_x, y: extent_update_single_y, fixed: Dim::Y };
+        let extent_update = ExtentUpdate { x: extent_update_single_x, y: extent_update_single_y };
         assert_eq!((2.5, 5.0, 8.0, 2.0), extent_update.get(&siblings, Ratio::new(1.0, 4.0).unwrap()));
 
-        let extent_update_invert = ExtentUpdate { x: extent_update_single_y, y: extent_update_single_x, fixed: Dim::X };
+        let extent_update_invert = ExtentUpdate { x: extent_update_single_y, y: extent_update_single_x };
         assert_eq!((5.0, 4.0, 2.0, 0.5), extent_update_invert.get(&siblings, Ratio::new(1.0, 4.0).unwrap()));
     }
 }

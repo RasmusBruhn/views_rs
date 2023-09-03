@@ -44,7 +44,7 @@ impl View {
         // Create the extent update to cover the entire screen
         let locate = ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) };
         let update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
-        let update_info = ExtentUpdate::new(update_single, update_single);
+        let update_info = ExtentUpdate { x: update_single, y: update_single };
 
         Self::new(update_info)
     }
