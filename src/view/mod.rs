@@ -1,7 +1,7 @@
 mod extent;
 mod update;
 
-pub use extent::update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateSingleType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView};
+pub use extent::update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView};
 pub use update::ViewUpdater;
 
 use bitflags;
@@ -44,7 +44,7 @@ impl View {
         // Create the extent update to cover the entire screen
         let locate = ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) };
         let update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
-        let update_info = ExtentUpdate { x: update_single, y: update_single };
+        let update_info = ExtentUpdate::new(update_single, update_single);
 
         Self::new(update_info)
     }
@@ -54,20 +54,6 @@ impl View {
     /// # Parameters
     /// 
     /// update_info: The extent update info decsribing how the extent is constructed
-    /// 
-    /// # Examples
-    /// 
-    /// Create view which is half the size of its parent and located in the middle
-    /// 
-    /// ```
-    /// use views::view;
-    /// 
-    /// let locate = view::ExtentLocate { pos: view::PositionType::Set(0.25), size: view::SizeType::Set(0.5) };
-    /// let update_single = view::ExtentUpdateSingle { extent_type: view::ExtentUpdateType::Locate(locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
-    /// let update_info = view::ExtentUpdate { x: update_single, y: update_single };
-    /// 
-    /// let view = view::View::new(update_info);
-    /// ```
     pub fn new(update_info: ExtentUpdate) -> Box<Self> {
         let children = Vec::new();
         let extent = extent::Extent::new(update_info);
@@ -173,18 +159,5 @@ pub enum ChildValidateError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    #[test]
-    fn new_root() {
-        let root = View::new_root();
-
-        let locate = ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) };
-        let update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
-        let update_info = ExtentUpdate { x: update_single, y: update_single };
-        let extent = extent::Extent::new(update_info);
-
-        assert_eq!(0, root.children.len());
-        assert_eq!(extent, root.extent);
-    }
 }

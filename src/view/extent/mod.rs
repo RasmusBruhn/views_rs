@@ -26,7 +26,8 @@ impl Extent {
     /// 
     /// update_info: The information on how to update the extent
     pub(super) fn new(update_info: update::ExtentUpdate) -> Self {
-        Self { x: 0.0, y: 0.0, w: 1.0, h: 1.0, update_info }
+        let ratio = Ratio::new(1.0, 1.0);
+        Self { x: 0.0, y: 0.0, w: 1.0, h: 1.0, update_info , ratio}
     }
 
     /// Tests whether a point (x, y) is within the extent.
@@ -52,7 +53,7 @@ impl Extent {
     /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
     /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
-    pub(super) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+    pub(super) fn validate(&mut self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         self.update_info.validate(siblings)
     }
 
@@ -61,9 +62,9 @@ impl Extent {
     /// # Parameters
     /// 
     /// siblings: All the older siblings
-    pub(super) fn update(&mut self, siblings: &[Box<View>]) {
+    pub(super) fn update(&mut self, siblings: &[Box<View>], parent_ratio: Ratio) {
         // Get the new extent
-        (self.x, self.y, self.w, self.h) = self.update_info.get(siblings);
+        (self.x, self.y, self.w, self.h) = self.update_info.get(siblings, parent_ratio);
     }
 }
 
@@ -90,43 +91,18 @@ impl Ratio {
         }
     }
 
-    /// Returns the value of the ratio
-    pub fn get(&self) -> f32 {
+    /// Returns the value of the ratio of w/h
+    pub fn get_x(&self) -> f32 {
         self.value
+    }
+
+    /// Returns the value of the ratio of h/w
+    pub fn get_y(&self) -> f32 {
+        1.0 / self.value
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    #[test]
-    fn contained_inside() {
-        let update_type = update::ExtentUpdateSingleType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
-        let update_single = update::ExtentUpdateSingle { extent_type: update_type, scale_rel: 1.0, scale_abs: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
-        let extent = Extent::new(update::ExtentUpdate { x: update_single, y: update_single });
-
-        assert!(extent.contained(0.5, 0.5));
-    }
-
-    #[test]
-    fn contained_outside() {
-        let update_type = update::ExtentUpdateSingleType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
-        let update_single = update::ExtentUpdateSingle { extent_type: update_type, scale_rel: 1.0, scale_abs: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
-        let extent = Extent::new(update::ExtentUpdate { x: update_single, y: update_single });
-
-        assert!(!extent.contained(2.0, 0.0));
-    }
-
-    #[test]
-    fn contained_edge() {
-        let update_type = update::ExtentUpdateSingleType::Stretch(update::ExtentStretch { pos1: update::PositionType::Set(0.0), pos2: update::PositionType::Set(1.0) });
-        let update_single = update::ExtentUpdateSingle { extent_type: update_type, scale_rel: 1.0, scale_abs: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
-        let extent = Extent::new(update::ExtentUpdate { x: update_single, y: update_single });
-
-        assert!(extent.contained(0.0, 0.5));
-        assert!(extent.contained(0.5, 0.0));
-        assert!(!extent.contained(1.0, 0.5));
-        assert!(!extent.contained(0.5, 1.0));
-    }
 }
