@@ -16,15 +16,9 @@ impl ExtentUpdate {
     /// 
     /// BothRatio: Both x and y uses a fixed aspect ratio referencing each other
     pub(crate) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
-        // Figure out if any dimension uses ratio and make sure they do not both do that
-        let x_ratio = if let ExtentUpdateType::Ratio(_) = self.x.extent_type {
-            true
-        } else {
-            false
-        };
-
-        if let ExtentUpdateType::Ratio(_) = self.y.extent_type {
-            if x_ratio {
+        // Make sure both dimensions are not using ratio mode
+        if let ExtentUpdateType::Ratio(_) = self.x.extent_type {
+            if let ExtentUpdateType::Ratio(_) = self.y.extent_type {
                 return Err(ChildValidateError::BothRatio);
             }
         };
@@ -398,7 +392,7 @@ impl RefView {
                 }
             }
 
-            // Make sure the is a sibling if it references the previous
+            // Make sure there is a sibling if it references the previous
             Self::Prev => {
                 if siblings.len() == 0 {
                     Err(ChildValidateError::NoPrev)
@@ -432,6 +426,94 @@ impl RefView {
             true
         } else {
             false
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::view::{UpdateFlags, extent::{Extent, Ratio}};
+    use super::*;
+
+    fn gen_view(x: f32, y: f32, w: f32, h: f32, sibling_id: usize) -> View {
+        let extent_single = ExtentUpdateSingle { scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0, extent_type: ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) }) };
+        let extent_info = ExtentUpdate { x: extent_single, y: extent_single };
+        let extent = Extent { x, y, w, h, update_info: extent_info, ratio: Ratio::new(w, h) };
+        View { children: Vec::new(), extent: extent, sibling_id: Some(sibling_id), update_flags: UpdateFlags::empty() }
+    }
+
+    mod validate {
+        use super::*;
+
+        #[test]
+        fn ref_view() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let sibling2 = gen_view(5.0, 6.0, 7.0, 8.0, 1);
+            let siblings = vec![Box::new(sibling1), Box::new(sibling2)];
+
+            let ref_view_id = RefView::Id(1);
+            assert_eq!(Ok(()), ref_view_id.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::WrongId(1, 0)), ref_view_id.validate(&siblings[..0]));
+
+            let ref_view_prev = RefView::Prev;
+            assert_eq!(Ok(()), ref_view_prev.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), ref_view_prev.validate(&siblings[..0]));
+        }
+
+        #[test]
+        fn anchor_point() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
+
+            let anchor_point = AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 };
+            assert_eq!(Ok(()), anchor_point.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), anchor_point.validate(&siblings[..0]));
+        }
+
+        #[test]
+        fn position_type() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
+
+            let position_type_set = PositionType::Set(0.0);
+            assert_eq!(Ok(()), position_type_set.validate(&siblings));
+
+            //let position_type_
+        }
+
+        #[test]
+        fn extent_stretch() {
+
+        }
+
+        #[test]
+        fn size_type() {
+
+        }
+
+        #[test]
+        fn extent_locate() {
+
+        }
+
+        #[test]
+        fn extent_ratio() {
+
+        }
+
+        #[test]
+        fn extent_update_type() {
+
+        }
+
+        #[test]
+        fn extent_update_single() {
+
+        }
+
+        #[test]
+        fn extent_update() {
+
         }
     }
 }
