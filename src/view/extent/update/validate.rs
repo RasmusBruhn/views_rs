@@ -478,22 +478,56 @@ mod tests {
             let position_type_set = PositionType::Set(0.0);
             assert_eq!(Ok(()), position_type_set.validate(&siblings));
 
-            //let position_type_
+            let position_type_anchor = PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 });
+            assert_eq!(Ok(()), position_type_anchor.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), position_type_anchor.validate(&siblings[..0]));
         }
 
         #[test]
         fn extent_stretch() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
 
+            let extent_stretch_success = ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) };
+            assert_eq!(Ok(()), extent_stretch_success.validate(&siblings));
+
+            let extent_stretch_fail1 = ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) };
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_stretch_fail1.validate(&siblings[..0]));
+
+            let extent_stretch_fail2 = ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) };
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_stretch_fail2.validate(&siblings[..0]));
         }
 
         #[test]
         fn size_type() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
 
+            let size_type_stretch = SizeType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) });
+            assert_eq!(Ok(()), size_type_stretch.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), size_type_stretch.validate(&siblings[..0]));
+
+            let size_type_relative = SizeType::Relative(RefView::Prev);
+            assert_eq!(Ok(()), size_type_relative.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), size_type_relative.validate(&siblings[..0]));
+
+            let size_type_set = SizeType::Set(0.0);
+            assert_eq!(Ok(()), size_type_set.validate(&siblings[..0]));
         }
 
         #[test]
         fn extent_locate() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
 
+            let extent_locate_success = ExtentLocate { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Relative(RefView::Prev) };
+            assert_eq!(Ok(()), extent_locate_success.validate(&siblings));
+
+            let extent_locate_failpos = ExtentLocate { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Set(0.0) };
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_locate_failpos.validate(&siblings[..0]));
+
+            let extent_locate_failsize = ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev) };
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_locate_failsize.validate(&siblings[..0]));
         }
 
         #[test]
