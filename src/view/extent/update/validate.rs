@@ -1,5 +1,5 @@
 use super::{View, ChildValidateError};
-use super::{ExtentUpdate, ExtentUpdateType, ExtentUpdateSingle, ExtentStretch, ExtentLocate, ExtentRatio, Dim, SizeType, PositionType, AnchorPoint, RefView};
+use super::{ExtentUpdate, ExtentUpdateType, ExtentUpdateSingle, ExtentStretch, ExtentLocate, ExtentRatio, SizeType, PositionType, AnchorPoint, RefView};
 
 impl ExtentUpdate {
     /// Tests whether the possible reference views exists, returns an error in case of an invalid reference
@@ -532,22 +532,60 @@ mod tests {
 
         #[test]
         fn extent_ratio() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
 
+            let extent_ratio = ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) };
+            assert_eq!(Ok(()), extent_ratio.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_ratio.validate(&siblings[..0]));
         }
 
         #[test]
         fn extent_update_type() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
 
+            let extent_update_type_stretch = ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) });
+            assert_eq!(Ok(()), extent_update_type_stretch.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_update_type_stretch.validate(&siblings[..0]));
+
+            let extent_update_type_locate = ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Set(0.0) });
+            assert_eq!(Ok(()), extent_update_type_locate.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_update_type_locate.validate(&siblings[..0]));
+
+            let extent_update_type_ratio = ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) });
+            assert_eq!(Ok(()), extent_update_type_ratio.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_update_type_ratio.validate(&siblings[..0]));
         }
 
         #[test]
         fn extent_update_single() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
 
+            let extent_update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) }), scale_rel: 0.0, scale_abs: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
+            assert_eq!(Ok(()), extent_update_single.validate(&siblings));
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_update_single.validate(&siblings[..0]));
         }
 
         #[test]
         fn extent_update() {
+            let sibling1 = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+            let siblings = vec![Box::new(sibling1)];
 
+            let ratio = ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) });
+            let locate = ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(0.0) });
+            let extent_update_success = ExtentUpdate { x: ExtentUpdateSingle { extent_type: ratio, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }, y: ExtentUpdateSingle { extent_type: locate, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 } };
+            assert_eq!(Ok(()), extent_update_success.validate(&siblings));
+
+            let extent_update_failx = ExtentUpdate { x: ExtentUpdateSingle { extent_type: ratio, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }, y: ExtentUpdateSingle { extent_type: locate, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 } };
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_update_failx.validate(&siblings[..0]));
+
+            let extent_update_faily = ExtentUpdate { x: ExtentUpdateSingle { extent_type: locate, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }, y: ExtentUpdateSingle { extent_type: ratio, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 } };
+            assert_eq!(Err(ChildValidateError::NoPrev), extent_update_faily.validate(&siblings[..0]));
+
+            let extent_update_failratio = ExtentUpdate { x: ExtentUpdateSingle { extent_type: ratio, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }, y: ExtentUpdateSingle { extent_type: ratio, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 } };
+            assert_eq!(Err(ChildValidateError::BothRatio), extent_update_failratio.validate(&siblings));
         }
     }
 }
