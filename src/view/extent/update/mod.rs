@@ -2,7 +2,7 @@ use super::{View, ChildValidateError, Ratio};
 
 mod validate;
 mod get;
-mod update;
+//mod update;
 
 /// Defines how the entire extent should update
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -143,5 +143,24 @@ impl Dim {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::view::{UpdateFlags, extent::Extent};
 
+    fn gen_view(x: f32, y: f32, w: f32, h: f32, sibling_id: usize) -> View {
+        let extent_single = ExtentUpdateSingle { scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0, extent_type: ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) }) };
+        let extent_info = ExtentUpdate { x: extent_single, y: extent_single };
+        let extent = Extent { x, y, w, h, update_info: extent_info, ratio: Ratio::new(w, h) };
+        View { children: Vec::new(), extent: extent, sibling_id: Some(sibling_id), update_flags: UpdateFlags::empty() }
+    }
+
+    #[test]
+    fn dim_get_from_view() {
+        let view = gen_view(1.0, 2.0, 3.0, 4.0, 0);
+
+        let dim_x = Dim::X;
+        assert_eq!((1.0, 3.0), dim_x.get_from_view(&view));
+
+        let dim_y = Dim::Y;
+        assert_eq!((2.0, 4.0), dim_y.get_from_view(&view));
+    }
 }

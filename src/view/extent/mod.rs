@@ -38,9 +38,9 @@ impl Extent {
     /// x: The x-position of the point
     /// 
     /// y: The y-position of the point
-    fn contained(&self, x: f32, y: f32) -> bool {
-        x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
-    }
+    //fn contained(&self, x: f32, y: f32) -> bool {
+    //    x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
+    //}
 
     /// Checks whether the update info has any invalid references. Returns an error in case of an invalid reference.
     /// 
@@ -53,7 +53,7 @@ impl Extent {
     /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
     /// 
     /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
-    pub(super) fn validate(&mut self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+    pub(super) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
         self.update_info.validate(siblings)
     }
 
@@ -104,5 +104,35 @@ impl Ratio {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
+    mod ratio {
+        use super::*;
+
+        #[test]
+        fn new() {
+            let ratio_value = Ratio::new(2.0, 5.0).unwrap();
+            assert_eq!(2.0 / 5.0, ratio_value.value);
+
+            let ratio_no_w = Ratio::new(0.0, 5.0);
+            assert!(ratio_no_w.is_none());
+
+            let ratio_no_h = Ratio::new(2.0, 0.0);
+            assert!(ratio_no_h.is_none());
+        }
+
+        #[test]
+        fn get() {
+            let ratio = Ratio::new(2.0, 5.0).unwrap();
+            assert_eq!(2.0 / 5.0, ratio.get_x());
+            assert_eq!(5.0 / 2.0, ratio.get_y());
+        }
+    }
+
+    mod extent {
+        #[test]
+        fn new() {
+            
+        }
+    }
 }

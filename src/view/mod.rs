@@ -1,7 +1,7 @@
 mod extent;
 mod update;
 
-pub use extent::update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView};
+pub use extent::{Ratio, update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView}};
 pub use update::ViewUpdater;
 
 use bitflags;
