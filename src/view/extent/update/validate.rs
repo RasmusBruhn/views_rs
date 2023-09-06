@@ -34,7 +34,7 @@ impl ExtentUpdate {
     /// 
     /// id: The ID to check
     fn check_id(&self, id: usize) -> bool {
-        self.y.check_id(id) || self.y.check_id(id)
+        self.x.check_id(id) || self.y.check_id(id)
     }
 
     /// Checks if this view references the previous sibling
@@ -586,6 +586,225 @@ mod tests {
 
             let extent_update_failratio = ExtentUpdate { x: ExtentUpdateSingle { extent_type: ratio, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 }, y: ExtentUpdateSingle { extent_type: ratio, scale_rel: 0.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 } };
             assert_eq!(Err(ChildValidateError::BothRatio), extent_update_failratio.validate(&siblings));
+        }
+    }
+
+    mod check_id {
+        use super::*;
+
+        #[test]
+        fn ref_view() {
+            let ref_view_id = RefView::Id(1);
+            assert!(!ref_view_id.check_id(0));
+            assert!(ref_view_id.check_id(1));
+
+            let ref_view_prev = RefView::Prev;
+            assert!(!ref_view_prev.check_id(1));
+        }
+
+        #[test]
+        fn anchor_point() {
+            let anchor_point = AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 };
+            assert!(!anchor_point.check_id(0));
+            assert!(anchor_point.check_id(1));
+        }
+
+        #[test]
+        fn position_type() {
+            let position_type_anchor = PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 });
+            assert!(!position_type_anchor.check_id(0));
+            assert!(position_type_anchor.check_id(1));
+
+            let position_type_set = PositionType::Set(0.0);
+            assert!(!position_type_set.check_id(1));
+        }
+
+        #[test]
+        fn extent_stretch() {
+            let extent_stretch_1 = ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }), pos2: PositionType::Set(0.0) };
+            assert!(!extent_stretch_1.check_id(0));
+            assert!(extent_stretch_1.check_id(1));
+
+            let extent_stretch_2 = ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }) };
+            assert!(!extent_stretch_2.check_id(0));
+            assert!(extent_stretch_2.check_id(1));
+        }
+
+        #[test]
+        fn size_type() {
+            let size_type_stretch = SizeType::Stretch((ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }), pos2: PositionType::Set(0.0) }));
+            assert!(!size_type_stretch.check_id(0));
+            assert!(size_type_stretch.check_id(1));
+
+            let size_type_relative = SizeType::Relative(RefView::Id(1));
+            assert!(!size_type_relative.check_id(0));
+            assert!(size_type_relative.check_id(1));
+
+            let size_type_set = SizeType::Set(0.0);
+            assert!(!size_type_set.check_id(1));
+        }
+
+        #[test]
+        fn extent_locate() {
+            let extent_locate_pos = ExtentLocate { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }), size: SizeType::Set(0.0) };
+            assert!(!extent_locate_pos.check_id(0));
+            assert!(extent_locate_pos.check_id(1));
+
+            let extent_locate_size = ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Id(1)) };
+            assert!(!extent_locate_size.check_id(0));
+            assert!(extent_locate_size.check_id(1));
+        }
+
+        #[test]
+        fn extent_ratio() {
+            let extent_ratio = ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }) };
+            assert!(!extent_ratio.check_id(0));
+            assert!(extent_ratio.check_id(1));
+        }
+
+        #[test]
+        fn extent_update_type() {
+            let extent_update_type_stretch = ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }), pos2: PositionType::Set(0.0) });
+            assert!(!extent_update_type_stretch.check_id(0));
+            assert!(extent_update_type_stretch.check_id(1));
+
+            let extent_update_type_locate = ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }), size: SizeType::Set(0.0) });
+            assert!(!extent_update_type_locate.check_id(0));
+            assert!(extent_update_type_locate.check_id(1));
+
+            let extent_update_type_ratio = ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }) });
+            assert!(!extent_update_type_ratio.check_id(0));
+            assert!(extent_update_type_ratio.check_id(1));
+        }
+
+        #[test]
+        fn extent_update_single() {
+            let extent_update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }) }), scale_abs: 0.0, scale_rel: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
+            assert!(!extent_update_single.check_id(0));
+            assert!(extent_update_single.check_id(1));
+        }
+
+        #[test]
+        fn extent_update() {
+            let extent_update_single_id = ExtentUpdateSingle { extent_type: ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Id(1), ref_point: 0.0 }) }), scale_abs: 0.0, scale_rel: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
+            let extent_update_single_set = ExtentUpdateSingle { extent_type: ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Set(0.0) }), scale_abs: 0.0, scale_rel: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
+
+            let extent_update_x = ExtentUpdate { x: extent_update_single_id, y: extent_update_single_set };
+            assert!(!extent_update_x.check_id(0));
+            assert!(extent_update_x.check_id(1));
+
+            let extent_update_y = ExtentUpdate { x: extent_update_single_set, y: extent_update_single_id };
+            assert!(!extent_update_y.check_id(0));
+            assert!(extent_update_y.check_id(1));
+        }
+    }
+
+    mod check_prev {
+        use super::*;
+
+        #[test]
+        fn ref_view() {
+            let ref_view_id = RefView::Id(1);
+            assert!(!ref_view_id.check_prev());
+
+            let ref_view_prev = RefView::Prev;
+            assert!(ref_view_prev.check_prev());
+        }
+
+        #[test]
+        fn anchor_point() {
+            let anchor_point = AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 };
+            assert!(!anchor_point.check_id(0));
+            assert!(anchor_point.check_id(1));
+        }
+
+        #[test]
+        fn position_type() {
+            let position_type_anchor = PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 });
+            assert!(!position_type_anchor.check_id(0));
+            assert!(position_type_anchor.check_id(1));
+
+            let position_type_set = PositionType::Set(0.0);
+            assert!(!position_type_set.check_id(1));
+        }
+
+        #[test]
+        fn extent_stretch() {
+            let extent_stretch_1 = ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) };
+            assert!(!extent_stretch_1.check_id(0));
+            assert!(extent_stretch_1.check_id(1));
+
+            let extent_stretch_2 = ExtentStretch { pos1: PositionType::Set(0.0), pos2: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) };
+            assert!(!extent_stretch_2.check_id(0));
+            assert!(extent_stretch_2.check_id(1));
+        }
+
+        #[test]
+        fn size_type() {
+            let size_type_stretch = SizeType::Stretch((ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) }));
+            assert!(!size_type_stretch.check_id(0));
+            assert!(size_type_stretch.check_id(1));
+
+            let size_type_relative = SizeType::Relative(RefView::Prev);
+            assert!(!size_type_relative.check_id(0));
+            assert!(size_type_relative.check_id(1));
+
+            let size_type_set = SizeType::Set(0.0);
+            assert!(!size_type_set.check_id(1));
+        }
+
+        #[test]
+        fn extent_locate() {
+            let extent_locate_pos = ExtentLocate { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Set(0.0) };
+            assert!(!extent_locate_pos.check_id(0));
+            assert!(extent_locate_pos.check_id(1));
+
+            let extent_locate_size = ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Relative(RefView::Prev) };
+            assert!(!extent_locate_size.check_id(0));
+            assert!(extent_locate_size.check_id(1));
+        }
+
+        #[test]
+        fn extent_ratio() {
+            let extent_ratio = ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) };
+            assert!(!extent_ratio.check_id(0));
+            assert!(extent_ratio.check_id(1));
+        }
+
+        #[test]
+        fn extent_update_type() {
+            let extent_update_type_stretch = ExtentUpdateType::Stretch(ExtentStretch { pos1: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), pos2: PositionType::Set(0.0) });
+            assert!(!extent_update_type_stretch.check_id(0));
+            assert!(extent_update_type_stretch.check_id(1));
+
+            let extent_update_type_locate = ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }), size: SizeType::Set(0.0) });
+            assert!(!extent_update_type_locate.check_id(0));
+            assert!(extent_update_type_locate.check_id(1));
+
+            let extent_update_type_ratio = ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) });
+            assert!(!extent_update_type_ratio.check_id(0));
+            assert!(extent_update_type_ratio.check_id(1));
+        }
+
+        #[test]
+        fn extent_update_single() {
+            let extent_update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) }), scale_abs: 0.0, scale_rel: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
+            assert!(!extent_update_single.check_id(0));
+            assert!(extent_update_single.check_id(1));
+        }
+
+        #[test]
+        fn extent_update() {
+            let extent_update_single_id = ExtentUpdateSingle { extent_type: ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Anchor(AnchorPoint { ref_view: RefView::Prev, ref_point: 0.0 }) }), scale_abs: 0.0, scale_rel: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
+            let extent_update_single_set = ExtentUpdateSingle { extent_type: ExtentUpdateType::Ratio(ExtentRatio { pos: PositionType::Set(0.0) }), scale_abs: 0.0, scale_rel: 0.0, offset_abs: 0.0, offset_rel: 0.0 };
+
+            let extent_update_x = ExtentUpdate { x: extent_update_single_id, y: extent_update_single_set };
+            assert!(!extent_update_x.check_prev());
+            assert!(extent_update_x.check_id(1));
+
+            let extent_update_y = ExtentUpdate { x: extent_update_single_set, y: extent_update_single_id };
+            assert!(!extent_update_y.check_id(0));
+            assert!(extent_update_y.check_id(1));
         }
     }
 }
