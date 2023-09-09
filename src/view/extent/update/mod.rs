@@ -2,7 +2,7 @@ use super::{View, ChildValidateError, Ratio};
 
 mod validate;
 mod get;
-//mod update;
+mod update;
 
 /// Defines how the entire extent should update
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -154,7 +154,7 @@ mod tests {
         extent.y = y;
         extent.w = w;
         extent.h = h;
-        View { children: Vec::new(), extent: extent }
+        View { children: Vec::new(), extent: extent, sibling_id: Some(sibling_id) }
     }
 
     #[test]

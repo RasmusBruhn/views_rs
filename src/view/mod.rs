@@ -1,31 +1,24 @@
 mod extent;
+mod children;
 //mod update;
 
 pub use extent::{Ratio, update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView}};
+pub use children::scheduler::{ChildrenScheduler, ChildrenScheduleOperation};
 //pub use update::ViewUpdater;
 
 use thiserror::Error;
-
-/*
-use bitflags;
-
-bitflags::bitflags! {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    struct UpdateFlags: u8 {
-        const NONE = 0x00;
-        const UPDATE_EXTENT_SELF = 0x01;
-        const UPDATE_EXTENT_CHILD = 0x02;
-    }
-}*/
+use std::{cell::RefCell, rc::Rc};
 
 /// A view struct containing all the information of a single view
 #[derive(Clone, Debug)]
 pub struct View { 
     /// A vector containing all of the children of the view, children cannot be removed only added
-    children: Vec<Box<View>>,
+    children: children::Children,
     /// The current extent of the view, this is relative to its parent, (0, 0) to (1, 1) would be the entire parent extent
     extent: extent::Extent,
-} // TODO: Add back in the sibling id
+    /// The position of this view in the parents child list
+    sibling_id: Option<usize>,
+}
 
 impl View {
     /// Creates a new root view.
@@ -44,7 +37,7 @@ impl View {
         let update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
         let update_info = ExtentUpdate { x: update_single, y: update_single };
 
-        Self::new(update_info)
+        Self::new(update_info, None)
     }
 
     /// Creates a new view
@@ -52,65 +45,24 @@ impl View {
     /// # Parameters
     /// 
     /// update_info: The extent update info decsribing how the extent is constructed
-    pub fn new(update_info: ExtentUpdate) -> Box<Self> {
-        let children = Vec::new();
+    /// 
+    /// parent_scheduler: The scheduler for the parent view, None if it is the root
+    pub fn new(update_info: ExtentUpdate, parent_scheduler: Option<Rc<RefCell<ChildrenScheduler>>>) -> Box<Self> {
+        let children = children::Children::new(parent_scheduler);
         let extent = extent::Extent::new(update_info);
+        let sibling_id = None;
 
-        Box::new(Self { children, extent })
+        Box::new(Self { children, extent, sibling_id })
     }
 
-    /// Pushes a new child into the end of the children list.
-    /// 
-    /// Returns an error if it could not validate the child.
-    /// 
-    /// # Parameters
-    /// 
-    /// child: The child view to add
-    pub fn push_child(&mut self, child: Box<View>) -> Result<(), ChildValidateError> {
-        // Validate that the child is valid
-        child.validate(&self.children)?;
-
-        // Push it
-        self.children.push(child);
-        
-        Ok(())
+    /// Gets the children scheduler
+    pub fn get_children_scheduler(&self) -> Rc<RefCell<ChildrenScheduler>> {
+        self.children.get_scheduler()
     }
 
-    /// Inserts a new child into some position of the children list.
-    /// 
-    /// Returns an error if it could not validate the child.
-    /// 
-    /// # Parameters
-    /// 
-    /// child: The child view to add
-    /// 
-    /// pos: The position to add it to, this must be smaller or equal to the number to children currently in the parent view
-    /// 
-    /// # Errors
-    pub fn insert_child(&mut self, child: Box<View>, pos: usize) -> Result<(), ChildValidateError> {
-        // Make sure the position is valid
-        if pos > self.children.len() {
-            return Err(ChildValidateError::LargePos(pos, self.children.len()));
-        }
-        
-        // Validate that the child is valid
-        child.validate(&self.children[..pos])?;
-
-        // Update indices of the other children
-
-
-        Ok(())
-    }
-
-    /// Deletes a child from the children list if it does not invalidate any references.
-    /// 
-    ///  Returns an error if any other sibling will be invalidated by removing this one.
-    /// 
-    /// # Parameters
-    /// 
-    /// pos: The position of the child to delete
-    pub fn delete_child(&mut self, _pos: usize) {
-        todo!();
+    /// Resolves all updates to the children
+    pub(crate) fn resolve_children(&mut self) {
+        self.children.resolve()
     }
 
     /// Updates the list extent and graphics, should be run once in the event loop once all the user events are handled

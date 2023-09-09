@@ -6,7 +6,6 @@ use crate::view::{View, ChildValidateError};
 pub struct EventLoop<T: 'static> {
     /// The winit event loop to run
     event_loop: winit::event_loop::EventLoop<T>,
-
     /// The root view
     root: View,
 }

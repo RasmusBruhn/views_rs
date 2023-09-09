@@ -5,8 +5,8 @@ impl ExtentUpdate {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         self.x.update_insert(pos);
         self.y.update_insert(pos);
     }
@@ -15,8 +15,8 @@ impl ExtentUpdate {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         self.x.update_delete(pos);
         self.y.update_delete(pos);
     }
@@ -27,8 +27,8 @@ impl ExtentUpdateSingle {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         self.extent_type.update_insert(pos);
     }
 
@@ -36,8 +36,8 @@ impl ExtentUpdateSingle {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         self.extent_type.update_delete(pos);
     }
 }
@@ -47,8 +47,8 @@ impl ExtentUpdateType {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         match self {
             // Extent is stretched between two points
             Self::Stretch(stretch) => stretch.update_insert(pos),
@@ -65,8 +65,8 @@ impl ExtentUpdateType {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         match self {
             // Extent is stretched between two points
             Self::Stretch(stretch) => stretch.update_delete(pos),
@@ -85,8 +85,8 @@ impl ExtentRatio {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         self.pos.update_insert(pos);
     }
 
@@ -94,8 +94,8 @@ impl ExtentRatio {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         self.pos.update_delete(pos);
     }
 }
@@ -105,8 +105,8 @@ impl ExtentLocate {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         self.pos.update_insert(pos);
         self.size.update_delete(pos);
     }
@@ -115,8 +115,8 @@ impl ExtentLocate {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         self.pos.update_delete(pos);
         self.size.update_delete(pos);
     }
@@ -127,8 +127,8 @@ impl SizeType {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         match self {
             // The size is relative to another size
             Self::Relative(relative) => relative.update_insert(pos),
@@ -145,8 +145,8 @@ impl SizeType {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         match self {
             // The size is relative to another size
             Self::Relative(relative) => relative.update_delete(pos),
@@ -165,8 +165,8 @@ impl ExtentStretch {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         self.pos1.update_insert(pos);
         self.pos2.update_insert(pos);
     }
@@ -175,8 +175,8 @@ impl ExtentStretch {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         self.pos1.update_delete(pos);
         self.pos2.update_delete(pos);
     }
@@ -187,8 +187,8 @@ impl PositionType {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         match self {
             // Check the anchor
             Self::Anchor(anchor) => anchor.update_insert(pos),
@@ -202,8 +202,8 @@ impl PositionType {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         match self {
             // Check the anchor
             Self::Anchor(anchor) => anchor.update_delete(pos),
@@ -219,8 +219,8 @@ impl AnchorPoint {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         self.ref_view.update_insert(pos);
     }
 
@@ -228,8 +228,8 @@ impl AnchorPoint {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         self.ref_view.update_delete(pos);
     }
 }
@@ -239,8 +239,8 @@ impl RefView {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_insert(&mut self, pos: usize) {
+    /// pos: The position that the sibling was inserted into
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         if let Self::Id(id) = self {
             if *id >= pos {
                 *id += 1;
@@ -252,8 +252,8 @@ impl RefView {
     /// 
     /// # Parameters
     /// 
-    /// pos: The position that the sibling was inserted
-    fn update_delete(&mut self, pos: usize) {
+    /// pos: The position that the sibling was deleted from
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         if let Self::Id(id) = self {
             if *id > pos {
                 *id -= 1;

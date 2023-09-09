@@ -35,6 +35,24 @@ impl ExtentUpdateContainer {
         self.update_info.validate(siblings)
     }
 
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted into
+    fn update_insert(&mut self, pos: usize) {
+        self.update_info.update_insert(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was deleted from
+    fn update_delete(&mut self, pos: usize) {
+        self.update_info.update_delete(pos);
+    }
+
     /// Gets the extent
     /// 
     /// # Parameters
@@ -43,7 +61,6 @@ impl ExtentUpdateContainer {
     fn get(&self, siblings: &[Box<View>], parent_ratio: Ratio) -> (f32, f32, f32, f32) {
         self.update_info.get(siblings, parent_ratio)
     }
-
 }
 
 /// Defines the extent of a view
@@ -64,6 +81,12 @@ pub struct Extent {
 }
 
 impl Extent {
+    /// Retrieves an instance of the extent update container refcell.
+    /// Make sure the refcell is not borrowed when the views run internal functions as this may cause crashes
+    pub fn get_update_info(&self) -> Rc<RefCell<ExtentUpdateContainer>> {
+        Rc::clone(&self.update_info)
+    }
+
     /// Creates a new extent, the size defaults to (x, y, w, h) = (0, 0, 1, 1) 
     /// but this should not be used before updating the extent with Extent.update()
     /// 
@@ -74,6 +97,24 @@ impl Extent {
         let ratio = Ratio::new(1.0, 1.0);
         let update_info = Rc::new(RefCell::new(ExtentUpdateContainer::new(update_info)));
         Self { x: 0.0, y: 0.0, w: 1.0, h: 1.0, update_info , ratio}
+    }
+
+    /// Updates possible references by ID on insertion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was inserted into
+    pub(super) fn update_insert(&mut self, pos: usize) {
+        self.update_info.borrow_mut().update_insert(pos);
+    }
+
+    /// Updates possible references by ID on deletion of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// pos: The position that the sibling was deleted from
+    pub(super) fn update_delete(&mut self, pos: usize) {
+        self.update_info.borrow_mut().update_delete(pos);
     }
 
     /// Tests whether a point (x, y) is within the extent.
@@ -87,12 +128,6 @@ impl Extent {
     //fn contained(&self, x: f32, y: f32) -> bool {
     //    x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
     //}
-
-    /// Retrieves an instance of the extent update container refcell.
-    /// Make sure the refcell is not borrowed when the views run internal functions as this may cause crashes
-    pub fn get_update_info(&self) -> Rc<RefCell<ExtentUpdateContainer>> {
-        Rc::clone(&self.update_info)
-    }
     
     /// Updates the extent
     /// 

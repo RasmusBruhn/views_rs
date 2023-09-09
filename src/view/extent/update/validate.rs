@@ -444,7 +444,7 @@ mod tests {
         extent.w = w;
         extent.h = h;
         extent.ratio = Ratio::new(w, h);
-        View { children: Vec::new(), extent: extent }
+        View { children: Vec::new(), extent: extent, sibling_id: Some(sibling_id) }
     }
 
     mod validate {
