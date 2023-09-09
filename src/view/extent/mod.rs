@@ -1,8 +1,53 @@
-pub mod update;
+pub(super) mod update;
+use std::{cell::RefCell, rc::Rc};
+
 use super::{View, ChildValidateError};
 
-/// Defines the extent of a view
+/// A container for the extent update info
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ExtentUpdateContainer {
+    /// The update info
+    update_info: update::ExtentUpdate,
+}
+
+impl ExtentUpdateContainer {
+    /// Creates a new extent update container
+    /// 
+    /// # Parameters
+    /// 
+    /// update_info: The information on how to update the extent
+    fn new(update_info: update::ExtentUpdate) -> Self {
+        Self { update_info }
+    }
+
+    /// Checks whether the update info has any invalid references. Returns an error in case of an invalid reference.
+    /// 
+    /// # Parameters
+    /// 
+    /// siblings: A slice of all the previous siblings of this view
+    /// 
+    /// # Errors
+    /// 
+    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
+    /// 
+    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
+    pub(crate) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+        self.update_info.validate(siblings)
+    }
+
+    /// Gets the extent
+    /// 
+    /// # Parameters
+    /// 
+    /// siblings: All the older siblings
+    fn get(&self, siblings: &[Box<View>], parent_ratio: Ratio) -> (f32, f32, f32, f32) {
+        self.update_info.get(siblings, parent_ratio)
+    }
+
+}
+
+/// Defines the extent of a view
+#[derive(Clone, Debug, PartialEq)]
 pub struct Extent {
     /// The x-position of the upper left corner 
     x: f32, 
@@ -15,7 +60,7 @@ pub struct Extent {
     /// The ratio of w to h in absolute size on the screen, None if either w or h are <= 0
     ratio: Option<Ratio>,
     /// The update information
-    pub(super) update_info: update::ExtentUpdate,
+    update_info: Rc<RefCell<ExtentUpdateContainer>>,
 }
 
 impl Extent {
@@ -27,6 +72,7 @@ impl Extent {
     /// update_info: The information on how to update the extent
     pub(super) fn new(update_info: update::ExtentUpdate) -> Self {
         let ratio = Ratio::new(1.0, 1.0);
+        let update_info = Rc::new(RefCell::new(ExtentUpdateContainer::new(update_info)));
         Self { x: 0.0, y: 0.0, w: 1.0, h: 1.0, update_info , ratio}
     }
 
@@ -42,29 +88,20 @@ impl Extent {
     //    x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
     //}
 
-    /// Checks whether the update info has any invalid references. Returns an error in case of an invalid reference.
-    /// 
-    /// # Parameters
-    /// 
-    /// siblings: A slice of all the previous siblings of this view
-    /// 
-    /// # Errors
-    /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
-    /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
-    pub(super) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
-        self.update_info.validate(siblings)
+    /// Retrieves an instance of the extent update container refcell.
+    /// Make sure the refcell is not borrowed when the views run internal functions as this may cause crashes
+    pub fn get_update_info(&self) -> Rc<RefCell<ExtentUpdateContainer>> {
+        Rc::clone(&self.update_info)
     }
-
+    
     /// Updates the extent
     /// 
     /// # Parameters
     /// 
     /// siblings: All the older siblings
-    pub(super) fn update(&mut self, siblings: &[Box<View>], parent_ratio: Ratio) {
-        // Get the new extent
-        (self.x, self.y, self.w, self.h) = self.update_info.get(siblings, parent_ratio);
+    fn update(&mut self, siblings: &[Box<View>], parent_ratio: Ratio) {
+        (self.x, self.y, self.w, self.h) = self.update_info.borrow().get(siblings, parent_ratio);
+        self.ratio = Ratio::new(self.w, self.h);
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{View, ExtentUpdate, UpdateFlags, ChildValidateError};
+use super::{View, ExtentUpdate, ChildValidateError};
 
 /// Struct for allowing external users to update views
 pub struct ViewUpdater<'a> {

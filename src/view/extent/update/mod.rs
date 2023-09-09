@@ -144,13 +144,17 @@ impl Dim {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::view::{UpdateFlags, extent::Extent};
+    use crate::view::extent::Extent;
 
     fn gen_view(x: f32, y: f32, w: f32, h: f32, sibling_id: usize) -> View {
         let extent_single = ExtentUpdateSingle { scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0, extent_type: ExtentUpdateType::Locate(ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) }) };
         let extent_info = ExtentUpdate { x: extent_single, y: extent_single };
-        let extent = Extent { x, y, w, h, update_info: extent_info, ratio: Ratio::new(w, h) };
-        View { children: Vec::new(), extent: extent, sibling_id: Some(sibling_id), update_flags: UpdateFlags::empty() }
+        let mut extent = Extent::new(extent_info);
+        extent.x = x;
+        extent.y = y;
+        extent.w = w;
+        extent.h = h;
+        View { children: Vec::new(), extent: extent }
     }
 
     #[test]
