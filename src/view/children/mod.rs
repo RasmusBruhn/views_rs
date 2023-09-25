@@ -1,7 +1,9 @@
-pub(crate) mod scheduler;
+mod scheduler;
 
-use crate::view::View;
+use super::View;
 use std::{cell::RefCell, rc::Rc};
+
+pub use scheduler::ChildrenScheduler;
 
 /// All data related to children including the list and the sheduler for changing the list
 #[derive(Clone, Debug)]

@@ -1,16 +1,19 @@
-pub(super) mod update;
-use std::{cell::RefCell, rc::Rc};
+mod update;
+use std::{cell::{RefCell, Ref}, rc::Rc, ops::Range};
 
-use super::{View, ChildValidateError};
+use super::View;
+
+pub use update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateType, ExtentRatio, ExtentLocate, SizeType, ExtentStretch, PositionType, AnchorPoint, RefView};
+pub use update::ValidateError;
 
 /// A container for the extent update info
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ExtentUpdateContainer {
+pub struct ExtentController {
     /// The update info
     update_info: update::ExtentUpdate,
 }
 
-impl ExtentUpdateContainer {
+impl ExtentController {
     /// Creates a new extent update container
     /// 
     /// # Parameters
@@ -25,14 +28,31 @@ impl ExtentUpdateContainer {
     /// # Parameters
     /// 
     /// siblings: A slice of all the previous siblings of this view
-    /// 
-    /// # Errors
-    /// 
-    /// ChildValidateError::WrongId: If a reference to a sibling by ID is invalid, it is invalid if the ID is larger than the number of children
-    /// 
-    /// ChildValidateError::NoPrev: If a reference to the previous sibling is used but this is the first child
-    pub(crate) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
+    pub(crate) fn validate(&self, siblings: &[Rc<RefCell<ExtentController>>]) -> Result<(), update::ValidateError> {
         self.update_info.validate(siblings)
+    }
+
+    /// Checks if the range of ID's are being references
+    /// 
+    /// # Parameters
+    /// 
+    /// range: The range to check for
+    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+        self.update_info.check_id_range(range)
+    }
+
+    /// Checks if the ID is being referenced
+    /// 
+    /// # Parameters
+    /// 
+    /// id: The ID to check
+    pub(crate) fn check_id(&self, id: usize) -> bool {
+        self.update_info.check_id(id)
+    }
+
+    /// Checks if this view references the previous sibling
+    pub(crate) fn check_prev(&self) -> bool {
+        self.update_info.check_prev()
     }
 
     /// Updates possible references by ID on insertion of a sibling before this one
@@ -40,8 +60,19 @@ impl ExtentUpdateContainer {
     /// # Parameters
     /// 
     /// pos: The position that the sibling was inserted into
-    fn update_insert(&mut self, pos: usize) {
+    pub(crate) fn update_insert(&mut self, pos: usize) {
         self.update_info.update_insert(pos);
+    }
+
+    /// Updates possible references by ID on movement of a sibling before this one
+    /// 
+    /// # Parameters
+    /// 
+    /// from: The original position of the sibling
+    /// 
+    /// to: The new position of the sibling
+    pub(crate) fn update_move(&mut self, from: usize, to: usize) {
+        self.update_info.update_move(from, to);
     }
 
     /// Updates possible references by ID on deletion of a sibling before this one
@@ -49,7 +80,7 @@ impl ExtentUpdateContainer {
     /// # Parameters
     /// 
     /// pos: The position that the sibling was deleted from
-    fn update_delete(&mut self, pos: usize) {
+    pub(crate) fn update_delete(&mut self, pos: usize) {
         self.update_info.update_delete(pos);
     }
 
@@ -77,16 +108,20 @@ pub struct Extent {
     /// The ratio of w to h in absolute size on the screen, None if either w or h are <= 0
     ratio: Option<Ratio>,
     /// The update information
-    update_info: Rc<RefCell<ExtentUpdateContainer>>,
+    update_info: Rc<RefCell<ExtentController>>,
 }
 
 impl Extent {
-    /// Retrieves an instance of the extent update container refcell.
-    /// Make sure the refcell is not borrowed when the views run internal functions as this may cause crashes
-    pub fn get_update_info(&self) -> Rc<RefCell<ExtentUpdateContainer>> {
+    /// Retrieves an instance of the extent controller refcell.
+    pub(super) fn get_controller(&self) -> Rc<RefCell<ExtentController>> {
         Rc::clone(&self.update_info)
     }
 
+    /// Retrieves an instance of the borrowed controller refcell.
+    pub(super) fn borrow_controller(&self) -> Ref<'_, ExtentController> {
+        self.update_info.borrow()
+    }
+    
     /// Creates a new extent, the size defaults to (x, y, w, h) = (0, 0, 1, 1) 
     /// but this should not be used before updating the extent with Extent.update()
     /// 
@@ -95,46 +130,16 @@ impl Extent {
     /// update_info: The information on how to update the extent
     pub(super) fn new(update_info: update::ExtentUpdate) -> Self {
         let ratio = Ratio::new(1.0, 1.0);
-        let update_info = Rc::new(RefCell::new(ExtentUpdateContainer::new(update_info)));
+        let update_info = Rc::new(RefCell::new(ExtentController::new(update_info)));
         Self { x: 0.0, y: 0.0, w: 1.0, h: 1.0, update_info , ratio}
     }
 
-    /// Updates possible references by ID on insertion of a sibling before this one
-    /// 
-    /// # Parameters
-    /// 
-    /// pos: The position that the sibling was inserted into
-    pub(super) fn update_insert(&mut self, pos: usize) {
-        self.update_info.borrow_mut().update_insert(pos);
-    }
-
-    /// Updates possible references by ID on deletion of a sibling before this one
-    /// 
-    /// # Parameters
-    /// 
-    /// pos: The position that the sibling was deleted from
-    pub(super) fn update_delete(&mut self, pos: usize) {
-        self.update_info.borrow_mut().update_delete(pos);
-    }
-
-    /// Tests whether a point (x, y) is within the extent.
-    /// Including (x1, y1) but excluding (x2, y2)
-    /// 
-    /// # Parameters
-    /// 
-    /// x: The x-position of the point
-    /// 
-    /// y: The y-position of the point
-    //fn contained(&self, x: f32, y: f32) -> bool {
-    //    x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
-    //}
-    
     /// Updates the extent
     /// 
     /// # Parameters
     /// 
     /// siblings: All the older siblings
-    fn update(&mut self, siblings: &[Box<View>], parent_ratio: Ratio) {
+    pub(super) fn update(&mut self, siblings: &[Box<View>], parent_ratio: Ratio) {
         (self.x, self.y, self.w, self.h) = self.update_info.borrow().get(siblings, parent_ratio);
         self.ratio = Ratio::new(self.w, self.h);
     }

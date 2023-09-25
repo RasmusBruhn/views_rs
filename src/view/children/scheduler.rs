@@ -1,6 +1,7 @@
-use crate::view::{View, ChildValidateError};
+use crate::view::{View, extent};
 use std::{cell::RefCell, rc::Rc};
 use bitflags;
+use thiserror::Error;
 
 /// Shedules changes to the children list
 #[derive(Clone, Debug)]
@@ -11,6 +12,8 @@ pub struct ChildrenScheduler {
     flags: ChildrenCheduleFlags,
     /// The parent scheduler
     parent_scheduler: Option<Rc<RefCell<ChildrenScheduler>>>,
+    /// The extent controllers for all of the children
+    children_extent_controllers: Vec<Rc<RefCell<extent::ExtentController>>>,
 }
 
 impl ChildrenScheduler {
@@ -19,9 +22,12 @@ impl ChildrenScheduler {
     /// # Parameters
     /// 
     /// operation: The operation to push
-    pub fn push_operation(&mut self, operation: ChildrenScheduleOperation) -> Result<(), ChildValidateError> {
+    pub fn push_operation(&mut self, operation: ChildrenScheduleOperation) -> Result<(), ValidateError> {
         // Make sure the operation is valid
-        todo!();
+        operation.validate(&self.children_extent_controllers)?;
+
+        // Update extents
+        operation.update(&mut self.children_extent_controllers);
 
         // Push it to the queue
         self.queue.push(operation);
@@ -38,12 +44,12 @@ impl ChildrenScheduler {
     /// 
     /// # Parameters
     /// 
-    /// parent: The scheduler for the parent view, None if it is the root
+    /// parent_scheduler: The scheduler for the parent view, None if it is the root
     pub(super) fn new(parent_scheduler: Option<Rc<RefCell<ChildrenScheduler>>>) -> Self {
         let queue = Vec::new();
         let flags = ChildrenCheduleFlags::NONE;
 
-        Self { queue, flags, parent_scheduler }
+        Self { queue, flags, parent_scheduler, children_extent_controllers: Vec::new() }
     }
 
     // resolves all the operations and clears the queue
@@ -83,11 +89,11 @@ impl ChildrenScheduler {
 #[derive(Clone, Debug)]
 pub enum ChildrenScheduleOperation {
     /// Push a view onto the end of the children list
-    Push(View),
+    Push(Box<View>),
     /// Insert a view into the children list at some position
-    Insert(View, usize),
+    Insert(Box<View>, usize),
     /// Move a view from one position to another, the first usize is the original position, the second is the new location.
-    /// The new location is calculated before the old one is removed which means that both original and original+1 are the same position
+    /// The new location is calculated after the old one is removed
     Move(usize, usize),
     /// Deletes a view from a specified position
     Delete(usize),
@@ -96,12 +102,129 @@ pub enum ChildrenScheduleOperation {
 impl ChildrenScheduleOperation {
     /// Resolves the operation
     fn resolve(self, children: &mut Vec<Box<View>>) {
-        todo!();
+        match self {
+            // Push the view onto the end
+            Self::Push(view) => children.push(view),
+
+            // Insert the view at the given position
+            Self::Insert(view, pos) => children.insert(pos, view),
+
+            // Move a view from one position to another
+            Self::Move(from, to) => {
+                let view = children.remove(from);
+                children.insert(to, view);
+            },
+
+            // Delete a view
+            Self::Delete(pos) => {
+                children.remove(pos);
+            }
+        }
     }
 
     /// Validates the operation
-    fn validate(&self, children: &mut Vec<Box<View>>) -> Result<(), ChildValidateError> {
-        todo!();
+    fn validate(&self, children_extent: &Vec<Rc<RefCell<extent::ExtentController>>>) -> Result<(), ValidateError> {
+        match &self {
+            // Just validate the view itself
+            Self::Push(view) => view.validate(children_extent)?,
+
+            // Just validate itself and that the pos is valid
+            Self::Insert(view, pos) => {
+                // Make sure index is not too large
+                if *pos > children_extent.len() {
+                    return Err(ValidateError::OutOfRange(*pos, children_extent.len()));
+                }
+
+                // Validate itself
+                view.validate(&children_extent[..*pos])?
+            }
+
+            // Validate itself if moved forward, validate the next does not use prev if from=0 and validate views which may get invalid id's
+            Self::Move(from, to) => {
+                // Make sure indices are not too large
+                if *to >= children_extent.len() {
+                    return Err(ValidateError::OutOfRange(*to, children_extent.len() - 1));
+                }
+                if *from >= children_extent.len() {
+                    return Err(ValidateError::InvalidPos(*from, children_extent.len()));
+                }
+
+                // If moved back, validate itself
+                if *to < *from {
+                    if *to == 0 && children_extent[*from].borrow().check_prev() {
+                        return Err(ValidateError::NoPrev(*from));
+                    }
+                    if children_extent[*from].borrow().check_id_range(*to..*from) {
+                        return Err(ValidateError::InvalidId(*from));
+                    }
+                } else if *to > *from { // If it is move forward, validat all other views
+                    if *from == 0 && children_extent[1].borrow().check_prev() {
+                        return Err(ValidateError::NoPrev(1));
+                    }
+                    for (pos, sibling) in children_extent[*from + 1..*to].iter().enumerate() {
+                        if sibling.borrow().check_id(*from) {
+                            return Err(ValidateError::InvalidId(pos + *from + 1));
+                        }
+                    }
+                }
+            },
+
+            // Validate all views after the deleted views
+            Self::Delete(pos) => {
+                // Make sure the position is valid
+                if *pos >= children_extent.len() {
+                    return Err(ValidateError::InvalidPos(*pos, children_extent.len()));
+                }
+
+                // Check all other views
+                for (check_pos, sibling) in children_extent[*pos + 1..].iter().enumerate() {
+                    if sibling.borrow().check_id(*pos) {
+                        return Err(ValidateError::InvalidId(check_pos + *pos + 1));
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Update the extents
+    fn update(&self, children_extent: &mut Vec<Rc<RefCell<extent::ExtentController>>>) {
+        match &self {
+            // Just append the new controller
+            Self::Push(view) => children_extent.push(view.get_extent_controller()),
+
+            // Update all id's after this point
+            Self::Insert(view, pos) => {
+                let iter_pos = if children_extent.len() == *pos {
+                    *pos
+                } else {
+                    *pos + 1
+                };
+                for controller in children_extent[iter_pos..].iter_mut() {
+                    controller.borrow_mut().update_insert(*pos);
+                }
+            }
+
+            // Update all views after the smallest of from/to
+            Self::Move(from, to) => {
+                let min_pos = if *from < *to {
+                    *from
+                } else {
+                    *to
+                };
+                for controller in children_extent[min_pos + 1..].iter_mut() {
+                    controller.borrow_mut().update_move(*from, *to);
+                }
+            },
+
+            // Update all views after the deleted view
+            Self::Delete(pos) => {
+                for controller in children_extent[*pos + 1..].iter_mut() {
+                    controller.borrow_mut().update_delete(*pos);
+                }
+            }
+        }
     }
 }
 
@@ -113,5 +236,25 @@ bitflags::bitflags! {
         const NONE = 0;
         /// There are items on one of the childrens queues
         const CHILDREN_QUEUE_ITEM = 1 << 0;
+    }
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum ValidateError {
+    #[error("The view cannot be inserted into position {:?} of view list with length {:?}", .0, .1)]
+    OutOfRange(usize, usize),
+    #[error("Position {:?} of view list with length {:?} does not exist", .0, .1)]
+    InvalidPos(usize, usize),
+    #[error("The operation cannot be applied because the view at position {:?} with a reference to previous view, would be moved to the back", .0)]
+    NoPrev(usize),
+    #[error("The operation cannot be applied because the view at position {:?} would be moved behind one of its references", .0)]
+    InvalidId(usize),
+    #[error("The new view cannot be inserted because it is invalid: {:?}", .0)]
+    InvalidNew(extent::ValidateError),
+}
+
+impl From<extent::ValidateError> for ValidateError {
+    fn from(err: extent::ValidateError) -> ValidateError {
+        ValidateError::InvalidNew(err)
     }
 }

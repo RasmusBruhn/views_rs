@@ -1,10 +1,5 @@
-mod extent;
-mod children;
-//mod update;
-
-pub use extent::{Ratio, update::{ExtentUpdate, ExtentUpdateSingle, ExtentUpdateType, ExtentStretch, ExtentLocate, SizeType, PositionType, AnchorPoint, RefView}};
-pub use children::scheduler::{ChildrenScheduler, ChildrenScheduleOperation};
-//pub use update::ViewUpdater;
+pub mod extent;
+pub mod children;
 
 use thiserror::Error;
 use std::{cell::RefCell, rc::Rc};
@@ -33,9 +28,9 @@ impl View {
     /// ```
     pub fn new_root() -> Box<Self> {
         // Create the extent update to cover the entire screen
-        let locate = ExtentLocate { pos: PositionType::Set(0.0), size: SizeType::Set(1.0) };
-        let update_single = ExtentUpdateSingle { extent_type: ExtentUpdateType::Locate(locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
-        let update_info = ExtentUpdate { x: update_single, y: update_single };
+        let locate = extent::ExtentLocate { pos: extent::PositionType::Set(0.0), size: extent::SizeType::Set(1.0) };
+        let update_single = extent::ExtentUpdateSingle { extent_type: extent::ExtentUpdateType::Locate(locate), scale_rel: 1.0, scale_abs: 0.0, offset_rel: 0.0, offset_abs: 0.0 };
+        let update_info = extent::ExtentUpdate { x: update_single, y: update_single };
 
         Self::new(update_info, None)
     }
@@ -47,7 +42,7 @@ impl View {
     /// update_info: The extent update info decsribing how the extent is constructed
     /// 
     /// parent_scheduler: The scheduler for the parent view, None if it is the root
-    pub fn new(update_info: ExtentUpdate, parent_scheduler: Option<Rc<RefCell<ChildrenScheduler>>>) -> Box<Self> {
+    pub fn new(update_info: extent::ExtentUpdate, parent_scheduler: Option<Rc<RefCell<children::ChildrenScheduler>>>) -> Box<Self> {
         let children = children::Children::new(parent_scheduler);
         let extent = extent::Extent::new(update_info);
         let sibling_id = None;
@@ -55,8 +50,13 @@ impl View {
         Box::new(Self { children, extent, sibling_id })
     }
 
+    /// Gets the extent controller
+    pub fn get_extent_controller(&self) -> Rc<RefCell<extent::ExtentController>> {
+        self.extent.get_controller()
+    }
+
     /// Gets the children scheduler
-    pub fn get_children_scheduler(&self) -> Rc<RefCell<ChildrenScheduler>> {
+    pub fn get_children_scheduler(&self) -> Rc<RefCell<children::ChildrenScheduler>> {
         self.children.get_scheduler()
     }
 
@@ -71,26 +71,9 @@ impl View {
     }
 
     /// Validates the view
-    pub(crate) fn validate(&self, siblings: &[Box<View>]) -> Result<(), ChildValidateError> {
-        self.extent.get_update_info().borrow().validate(siblings)
+    pub(crate) fn validate(&self, siblings: &[Rc<RefCell<extent::ExtentController>>]) -> Result<(), extent::ValidateError> {
+        self.extent.borrow_controller().validate(siblings)
     }
-}
-
-
-#[derive(Error, Debug, Clone, Copy, PartialEq)]
-pub enum ChildValidateError {
-    #[error("A sibling ID of {:?} is too large, it must be smaller than {:?}", .0, .1)]
-    WrongId(usize, usize),
-    #[error("Reference to previous sibling is invalid when view is the first child")]
-    NoPrev,
-    #[error("Position of {:?} is invalid, it must be smaller than or equal to {:?}", .0, .1)]
-    LargePos(usize, usize),
-    #[error("This view cannot be deleted because sibling {:?} is referencing this view by ID", .0)]
-    SiblingDependenceId(usize),
-    #[error("This view cannot be deleted because the next sibling is referencing this view and there is no prev sibling")]
-    SiblingDependencePrev,
-    #[error("An extent cannot use aspect mode for both dimensions")]
-    BothRatio,
 }
 
 #[cfg(test)]

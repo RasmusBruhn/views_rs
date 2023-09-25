@@ -228,7 +228,7 @@ impl RefView {
 
 #[cfg(test)]
 mod tests {
-    use crate::view::extent::Extent;
+    use crate::view::{children::Children, extent::Extent};
     use super::*;
 
     fn gen_view(x: f32, y: f32, w: f32, h: f32, sibling_id: usize) -> View {
@@ -239,7 +239,7 @@ mod tests {
         extent.y = y;
         extent.w = w;
         extent.h = h;
-        View { children: Vec::new(), extent: extent, sibling_id: Some(sibling_id) }
+        View { children: Children::new(None), extent: extent, sibling_id: Some(sibling_id) }
     }
 
     #[test]
