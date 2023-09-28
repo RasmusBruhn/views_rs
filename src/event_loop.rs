@@ -1,5 +1,5 @@
 use winit;
-use crate::view::{View, ChildValidateError};
+use crate::view::{View, extent, children};
 
 /// Defines a wrapper of a winit event loop which will deal with all the gui handling before passing events on to the user
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl EventLoop<()> {
     /// # Parameters
     /// 
     /// root: The root view for the window
-    pub fn new(root: View) -> Result<Self, ChildValidateError> {
+    pub fn new(root: View) -> Result<Self, children::ValidateError> {
         // Make sure the root is valid
         root.validate(&[])?;
 
@@ -35,7 +35,7 @@ impl<T: 'static> EventLoop<T> {
     /// root: The root view for the window
     /// 
     /// event_loop: The winit event loop to run
-    pub fn from_winit_loop(root: View, event_loop: winit::event_loop::EventLoop<T>) -> Result<Self, ChildValidateError> {
+    pub fn from_winit_loop(root: View, event_loop: winit::event_loop::EventLoop<T>) -> Result<Self, children::ValidateError> {
             // Make sure the root is valid
             root.validate(&[])?;
 

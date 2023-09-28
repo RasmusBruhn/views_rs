@@ -26,7 +26,7 @@ impl ExtentUpdate {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         self.x.check_id_range(range) || self.y.check_id_range(range)
     }
 
@@ -61,7 +61,7 @@ impl ExtentUpdateSingle {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         self.extent_type.check_id_range(range)
     }
 
@@ -104,7 +104,7 @@ impl ExtentUpdateType {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         match self {
             // Extent is stretched between two points
             Self::Stretch(stretch) => stretch.check_id_range(range),
@@ -165,7 +165,7 @@ impl ExtentRatio {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         self.pos.check_id_range(range)
     }
 
@@ -201,7 +201,7 @@ impl ExtentLocate {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         self.pos.check_id_range(range) || self.size.check_id_range(range)
     }
 
@@ -244,7 +244,7 @@ impl SizeType {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         match self {
             // The size is relative to another size
             Self::Relative(relative) => relative.check_id_range(range),
@@ -307,7 +307,7 @@ impl ExtentStretch {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         self.pos1.check_id_range(range) || self.pos2.check_id_range(range)
     }
 
@@ -347,7 +347,7 @@ impl PositionType {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         match self {
             // Check the anchor
             Self::Anchor(anchor) => anchor.check_id_range(range),
@@ -400,7 +400,7 @@ impl AnchorPoint {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         self.ref_view.check_id_range(range)
     }
 
@@ -452,7 +452,7 @@ impl RefView {
     /// # Parameters
     /// 
     /// range: The range to check for
-    pub(crate) fn check_id_range(&self, range: Range<usize>) -> bool {
+    pub(crate) fn check_id_range(&self, range: &Range<usize>) -> bool {
         if let Self::Id(id) = *self {
             if range.contains(&id) {
                 true

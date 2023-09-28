@@ -3,7 +3,7 @@ mod scheduler;
 use super::View;
 use std::{cell::RefCell, rc::Rc};
 
-pub use scheduler::ChildrenScheduler;
+pub use scheduler::{ChildrenScheduler, ValidateError};
 
 /// All data related to children including the list and the sheduler for changing the list
 #[derive(Clone, Debug)]

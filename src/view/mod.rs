@@ -1,7 +1,6 @@
 pub mod extent;
 pub mod children;
 
-use thiserror::Error;
 use std::{cell::RefCell, rc::Rc};
 
 /// A view struct containing all the information of a single view

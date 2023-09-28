@@ -204,6 +204,7 @@ impl ChildrenScheduleOperation {
                 for controller in children_extent[iter_pos..].iter_mut() {
                     controller.borrow_mut().update_insert(*pos);
                 }
+                children_extent.insert(*pos, view.get_extent_controller());
             }
 
             // Update all views after the smallest of from/to
@@ -216,6 +217,8 @@ impl ChildrenScheduleOperation {
                 for controller in children_extent[min_pos + 1..].iter_mut() {
                     controller.borrow_mut().update_move(*from, *to);
                 }
+                let extent_controller = children_extent.remove(*from);
+                children_extent.insert(*to, extent_controller);
             },
 
             // Update all views after the deleted view
@@ -223,6 +226,7 @@ impl ChildrenScheduleOperation {
                 for controller in children_extent[*pos + 1..].iter_mut() {
                     controller.borrow_mut().update_delete(*pos);
                 }
+                children_extent.remove(*pos);
             }
         }
     }
